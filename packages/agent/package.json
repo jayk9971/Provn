@@ -1,0 +1,20 @@
+{
+  "name": "@provn/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A minimal demo agent that talks to the Provn gateway via MCP. Holds no wallet keys.",
+  "scripts": {
+    "start": "tsx --env-file-if-exists=../../.env src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@provn/shared": "workspace:*"
+  }
+}

@@ -1,0 +1,68 @@
+# Provn payment policy (example).
+#
+# Rules are checked top to bottom. The FIRST rule whose `when` conditions all hold decides
+# the outcome. A rule with an empty `when` always matches, so keep the default last.
+#
+# Origins (see TrustLabel in packages/shared):
+#   trusted   typed by the user
+#   bound     payee from the 402 response of the host being paid
+#   untrusted fetched from outside
+#   derived   computed by the agent or model
+#   unknown   could not be traced to any ledger entry
+#
+# Conditions:
+#   recipient_origin_in                    recipient's origin is one of these
+#   recipient_not_bound_to_requested_host  recipient did not come from the 402 of requestedHost
+#   not_in_plan                            payment is not part of the task's mandate plan
+#   amount_or_quantity_origin_in           amount or quantity origin is one of these
+#   recipient_is_new                       recipient has never been paid before
+#   over_mandate_budget                    payment would push the task past mandate.maxTotalUsdc
+
+version: 1
+
+# Hard limits, applied regardless of rules. The vault contract enforces the same limits on-chain.
+floor:
+  per_tx_max_usdc: "5.00"
+  daily_budget_usdc: "20.00"
+
+rules:
+  - id: deny-untrusted-or-unknown-recipient
+    outcome: deny
+    when:
+      recipient_origin_in: [untrusted, unknown]
+    reason: The recipient came from outside content or could not be traced.
+
+  - id: deny-payee-not-from-402-of-requested-host
+    outcome: deny
+    when:
+      recipient_not_bound_to_requested_host: true
+    reason: The recipient is not the payee in the 402 response of the host being paid.
+
+  - id: approve-payment-not-in-plan
+    outcome: require_approval
+    when:
+      not_in_plan: true
+    reason: This payment is not part of what you asked the agent to do.
+
+  - id: approve-untrusted-quantity-or-amount
+    outcome: require_approval
+    when:
+      amount_or_quantity_origin_in: [untrusted, unknown, derived]
+    reason: The amount or quantity did not come from you or the vendor.
+
+  - id: approve-new-recipient
+    outcome: require_approval
+    when:
+      recipient_is_new: true
+    reason: This is the first payment to this recipient.
+
+  - id: approve-over-mandate-budget
+    outcome: require_approval
+    when:
+      over_mandate_budget: true
+    reason: This payment would go over the budget you set for the task.
+
+  - id: allow-default
+    outcome: allow
+    when: {}
+    reason: All payment details came from you or the vendor, and the payment is within limits.

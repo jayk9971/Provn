@@ -1,8 +1,22 @@
-node_modules
+# Secrets: never commit real values. Only .env.example is tracked.
 .env
-out
-cache
-broadcast
-*.db
+.env.*
+!.env.example
+
+# Node / build output
+node_modules
 dist
+*.tsbuildinfo
+
+# Local SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Foundry (contracts/lib/forge-std is a tracked git submodule)
+contracts/out
+contracts/cache
+contracts/broadcast
+
 .DS_Store

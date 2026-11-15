@@ -1,0 +1,21 @@
+{
+  "name": "@provn/paid-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Demo x402-style paid API, including prompt-injection attack endpoints.",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.8",
+    "@provn/shared": "workspace:*",
+    "hono": "^4.13.18"
+  }
+}

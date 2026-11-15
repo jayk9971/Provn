@@ -1,0 +1,23 @@
+---
+description: Provn non-negotiable security rules and repo conventions
+alwaysApply: true
+---
+
+# Provn rules
+
+Provn is a security gateway for AI agents that pay with USDC. Judges will read the code: prefer clarity over cleverness.
+
+## Non-negotiable
+- The `agent` package must never hold wallet keys or Circle credentials. Only the gateway does. The agent has a gateway session token and nothing else.
+- Any error in the payment path returns "deny" (fail closed).
+- Content fetched from outside is always labeled "untrusted". Only the 402 payee from the requested host is "bound".
+- USDC amounts use the ERC-20 interface (6 decimals), never native USDC (18).
+- Never commit `.env` or secrets. Only `.env.example` is tracked, with empty values.
+
+## Conventions
+- pnpm workspaces under `packages/`; contracts in `contracts/` (Foundry); example policy in `policies/policy.yaml`.
+- TypeScript strict, ESM, relative imports end in `.js`. Shared types live in `packages/shared/src/types.ts`.
+- Validate the mandate, HTTP request bodies, and MCP tool inputs with zod.
+- Stubs carry a `TODO:` comment naming what they should do, and fail safe (deny, empty, or `NotImplementedError`), never allow.
+- Do not add dependencies without asking first.
+- Verify with `pnpm build && pnpm test` and `cd contracts && forge build && forge test`.

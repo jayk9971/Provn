@@ -1,22 +1,51 @@
-# Architecture Overview
+# Architecture
 
-The Agent Spend Firewall consists of four core components working together to ensure safe, verified, and policy-compliant AI agent transactions:
+Provn sits between an AI agent and its money. The agent can read and reason, but it cannot
+pay. Only the gateway can, and the gateway pays only when it can show where every payment
+detail came from.
 
-1. **SpendVault (Smart Contract)**
-   - Deployed on Arc testnet.
-   - Enforces per-transaction caps, daily spending budgets, global allowlists, and temporary narrowing task policies.
-   - Only the designated gateway address can call `spend()`.
+## Components
 
-2. **Gateway (Hono + MCP Server)**
-   - Intercepts agent tool calls (`pay`, `fetch_paid_data`).
-   - Normalizes requests, extracts mandates and provenance (`Trust`, `Origin`), runs policy evaluation (`decide()`), and records every decision in an append-only SQLite audit log.
-   - Executes approved transactions through the vault viem client or queues hash-bound human approvals.
+```
+              +----------------------------- gateway -----------------------------+
+agent --MCP-->| mcp   -> payment pipeline                                         |
+              |            intake    task + mandate from the trusted user request |
+              |            fetcher   outside content -> "untrusted" ledger entries|
+              |            trace     proposal fields -> ledger entries (origins)  |
+              |            policy    policy.yaml rules + floor -> Decision        |
+              |            approvals human approval bound to a payment hash       |
+              |            audit     decision record with origins and rule        |
+              |            wallet    WalletAdapter -> Circle -> ProvnVault        |
+dashboard --->| http  -> /tasks, /tasks/:id/ledger, /approvals, /approvals/:id/approve
+              +-------------------------------------------------------------------+
+```
 
-3. **Paid API (x402 Server)**
-   - Simulates x402-style monetized endpoints.
-   - Rejects unauthenticated requests with HTTP 402 and payment instructions.
-   - Verifies cryptographic on-chain payment proofs before serving data (including injected prompt-injection test payloads).
+- **shared** defines the vocabulary: `TrustLabel`, `LedgerEntry`, `Mandate`, `PaymentProposal`,
+  `FieldOrigin`, `Decision`, `Approval`, and the Arc constants.
+- **gateway** is the trusted core. Everything the agent sees comes through its two MCP tools,
+  `fetch_paid_data(url)` and `pay(recipient, amount, memo)`.
+- **agent** is a minimal tool-calling loop. It holds only a gateway session token.
+- **paid-api** is a demo vendor: `/report` answers 402 with a payee, and `/inject/*` serve
+  prompt-injection attacks (wrong quantity, wrong payee, base64-hidden payee).
+- **dashboard** shows the mandate, the live ledger with trust badges, pending approvals, and
+  the budget.
+- **ProvnVault** limits damage on-chain: per-transaction max, daily budget, allowlist, pause.
 
-4. **Dashboard (React + Vite + viem)**
-   - Real-time management interface.
-   - Displays mandate configuration, live provenance ledger, pending approvals, and vault budget usage.
+## Trust labels
+
+| Label       | Meaning                                                                           |
+| ----------- | --------------------------------------------------------------------------------- |
+| `trusted`   | Typed by the user and recorded by the gateway.                                    |
+| `bound`     | The payee in a 402 response from the host being paid. Trusted for that host only. |
+| `untrusted` | Anything fetched from outside.                                                    |
+| `derived`   | Computed by the agent or model from other entries.                                |
+
+A payment goes through without approval only when its recipient, amount, and quantity trace to
+`trusted` or `bound` entries.
+
+## Status
+
+This is a skeleton. Real: ledger, audit log, intake (records the trusted request), MCP and HTTP
+wiring, input validation, fail-closed payment path, the vault contract. Stubbed (see `TODO:`
+comments): fetcher, field tracing, the policy engine, approvals, the Circle wallet adapter, the
+LLM call in the agent, payment verification in paid-api, and live data in the dashboard.

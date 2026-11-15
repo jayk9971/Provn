@@ -1,18 +1,29 @@
 {
-  "name": "agent-spend-firewall",
+  "name": "provn",
   "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "gateway",
-    "paid-api",
-    "agent",
-    "dashboard"
-  ],
+  "type": "module",
+  "description": "Provn: a security gateway for AI agents that pay with USDC.",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22.9"
+  },
   "scripts": {
-    "dev:gateway": "npm run dev -w gateway",
-    "dev:paid-api": "npm run dev -w paid-api",
-    "dev:dashboard": "npm run dev -w dashboard",
-    "test:gateway": "npm test -w gateway",
-    "build": "npm run build --workspaces --if-present"
+    "predev": "pnpm --filter @provn/shared build",
+    "dev": "pnpm -r --parallel --filter @provn/gateway --filter @provn/paid-api --filter @provn/dashboard dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2"
   }
 }
