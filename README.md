@@ -90,8 +90,6 @@ vault using values from `.env`.
 
 ## Demo script
 
-TODO: write the demo once the policy engine is implemented.
-
 1. Create a task from a trusted request.
 2. Agent fetches `paid-api` `/report` and pays the 402 payee: allowed.
 3. Agent fetches `/inject/payee`, `/inject/quantity`, `/inject/encoded`: each attack is denied
@@ -100,4 +98,5 @@ TODO: write the demo once the policy engine is implemented.
 
 ## Team
 
-TODO: add team members.
+Jay Kohut
+Nikhil Madakasira
