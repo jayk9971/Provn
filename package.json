@@ -1,0 +1,18 @@
+{
+  "name": "agent-spend-firewall",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "gateway",
+    "paid-api",
+    "agent",
+    "dashboard"
+  ],
+  "scripts": {
+    "dev:gateway": "npm run dev -w gateway",
+    "dev:paid-api": "npm run dev -w paid-api",
+    "dev:dashboard": "npm run dev -w dashboard",
+    "test:gateway": "npm test -w gateway",
+    "build": "npm run build --workspaces --if-present"
+  }
+}

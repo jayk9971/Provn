@@ -1,0 +1,8 @@
+rules:
+  - name: max-per-tx
+    description: "Deny if amount exceeds per-transaction limit"
+  - name: trusted-origin
+    description: "Require approval if provenance origin is untrusted or derived from prompt injection"
+  - name: allowlist-check
+    description: "Deny if recipient is not allowlisted"
+decision_mode: strict
