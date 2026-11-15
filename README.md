@@ -2,10 +2,6 @@
 
 A security gateway for AI agents that pay with USDC.
 
-> Hackathon skeleton (UBC 2026, Agentic Payments and AI track). The structure, types, and
-> interfaces are in place; the provenance tracing, policy engine, and approval flow are stubs
-> with `TODO:` comments.
-
 ## What Provn does
 
 Provn wraps an AI agent. It records the user's request (trusted), fetches outside content
@@ -41,19 +37,21 @@ When the agent calls `pay`, the gateway runs this path. Any error at any step re
 
 1. Validate the input (zod) and look up the task and its mandate.
 2. Trace each field (recipient, amount, quantity) back to a ledger entry: `trusted`, `bound`,
+
    `untrusted`, `derived`, or `unknown`.
 3. Evaluate `policies/policy.yaml`: first matching rule wins, then the floor is applied.
 4. Record the decision (with field origins and rule) in the audit log.
 5. Act on it: `allow` pays through the wallet adapter, `require_approval` queues it for the
+
    user, `deny` returns a short reason to the agent. The agent never sees field origins.
 
 ## Safety limits
 
 - **Gateway:** policy rules, a floor (`per_tx_max_usdc`, `daily_budget_usdc`), and approvals
-  bound to a payment hash so they only cover the exact payment the user saw.
+bound to a payment hash so they only cover the exact payment the user saw.
 - **Ledger and audit log:** append-only (SQLite triggers abort updates and deletes).
 - **Vault contract:** per-transaction max, daily budget, recipient allowlist, pause, and
-  owner-only withdrawals. Enforced on-chain even if the gateway is compromised.
+owner-only withdrawals. Enforced on-chain even if the gateway is compromised.
 - **Fail closed:** any error in the payment path returns "deny".
 
 ## How it uses Arc
@@ -93,10 +91,11 @@ vault using values from `.env`.
 1. Create a task from a trusted request.
 2. Agent fetches `paid-api` `/report` and pays the 402 payee: allowed.
 3. Agent fetches `/inject/payee`, `/inject/quantity`, `/inject/encoded`: each attack is denied
+
    or sent for approval.
 4. Show the ledger, field origins, and audit record in the dashboard.
 
 ## Team
 
-Jay Kohut
-Nikhil Madakasira
+- Jay Kohut
+- Nikhil Madakasira
