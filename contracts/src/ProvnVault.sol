@@ -114,6 +114,17 @@ contract ProvnVault {
         if (!usdc.transfer(to, amount)) revert TransferFailed();
     }
 
+    /// @notice Spent in the current UTC day. The public `spentToday` can show yesterday's total until the next spend.
+    function spentInCurrentDay() public view returns (uint256) {
+        return _today() > dayStart ? 0 : spentToday;
+    }
+
+    /// @notice Budget left today, in USDC base units.
+    function remainingToday() external view returns (uint256) {
+        uint256 spent = spentInCurrentDay();
+        return dailyBudget > spent ? dailyBudget - spent : 0;
+    }
+
     function setAllowlist(address account, bool allowed) external onlyOwner {
         allowlist[account] = allowed;
         emit AllowlistSet(account, allowed);
