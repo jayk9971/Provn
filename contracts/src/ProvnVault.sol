@@ -46,6 +46,7 @@ contract ProvnVault {
     /// @dev Emitted by both `pause` (true) and `unpause` (false).
     event Paused(bool isPaused);
     event AllowlistSet(address indexed account, bool allowed);
+    event SpenderSet(address indexed oldSpender, address indexed newSpender);
 
     // --------------------------------------------------------- revert reasons
 
@@ -144,7 +145,14 @@ contract ProvnVault {
         if (!usdc.transfer(to, amount)) revert TransferFailed();
     }
 
-    // TODO: add `setSpender` so the owner can rotate Provn's key.
+    /// @notice Update the authorized spender address.
+    function setSpender(address newSpender) external onlyOwner {
+        if (newSpender == address(0)) revert ZeroAddress();
+        address oldSpender = spender;
+        spender = newSpender;
+        emit SpenderSet(oldSpender, newSpender);
+    }
+
     // TODO: add `transferOwnership` (two-step) so ownership can move to a multisig.
 
     // ------------------------------------------------------------- internal
