@@ -39,9 +39,6 @@ contract ProvnVault {
     // --------------------------------------------------------------- events
 
     event Spent(address indexed to, uint256 amount);
-    // TODO: a reverted `spend` rolls back its own events, so `Blocked` can never be seen.
-    // Decide whether to emit it from a non-reverting path (return false) or drop it.
-    event Blocked(address indexed to, uint256 amount, string reason);
     event LimitsSet(uint256 perTxMax, uint256 dailyBudget);
     /// @dev Emitted by both `pause` (true) and `unpause` (false).
     event Paused(bool isPaused);
