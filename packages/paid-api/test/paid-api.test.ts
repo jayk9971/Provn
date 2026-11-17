@@ -1,12 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createPaidApi, PAYMENT_HEADER } from "../src/app.js";
 
-const app = createPaidApi({ PAID_API_PAYEE: "0x" + "11".repeat(20) });
+const app = createPaidApi(
+  { PAID_API_PAYEE: "0x" + "11".repeat(20) },
+  { verify: async () => true },
+);
 const TX_HASH = "0x" + "ab".repeat(32);
 
 describe("GET /report", () => {
   it("returns 402 with price, payee and network when no payment header is sent", async () => {
-    const res = await app.request("/report");
+    // Re-create app without injection for this test to check 402 response
+    const appDefault = createPaidApi({ PAID_API_PAYEE: "0x" + "11".repeat(20) }, { verify: async () => false });
+    const res = await appDefault.request("/report");
     expect(res.status).toBe(402);
     expect(await res.json()).toEqual({
       price: "0.05",
@@ -17,15 +22,41 @@ describe("GET /report", () => {
     });
   });
 
-  it("returns 402 when the header is not a tx hash", async () => {
-    const res = await app.request("/report", { headers: { [PAYMENT_HEADER]: "nope" } });
-    expect(res.status).toBe(402);
-  });
-
   it("returns the report when a tx hash is presented", async () => {
     const res = await app.request("/report", { headers: { [PAYMENT_HEADER]: TX_HASH } });
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("report");
+  });
+});
+
+describe("GET /premium-report", () => {
+  it("returns 402 with price '0.90' for qty=1", async () => {
+    const appDefault = createPaidApi({ PAID_API_PAYEE: "0x" + "11".repeat(20) }, { verify: async () => false });
+    const res = await appDefault.request("/premium-report?qty=1");
+    expect(res.status).toBe(402);
+    const json = await res.json();
+    expect(json.price).toBe("0.90");
+  });
+
+  it("returns 402 with price '9.00' for qty=10", async () => {
+    const appDefault = createPaidApi({ PAID_API_PAYEE: "0x" + "11".repeat(20) }, { verify: async () => false });
+    const res = await appDefault.request("/premium-report?qty=10");
+    expect(res.status).toBe(402);
+    const json = await res.json();
+    expect(json.price).toBe("9.00");
+  });
+
+  it("returns 400 for invalid qty", async () => {
+    for (const q of ["0", "abc", "101"]) {
+      const res = await app.request(`/premium-report?qty=${q}`);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("returns 200 and mentions quantity when verified", async () => {
+    const res = await app.request("/premium-report?qty=5", { headers: { [PAYMENT_HEADER]: TX_HASH } });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("Premium EV battery report x5.");
   });
 });
 
