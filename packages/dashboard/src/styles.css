@@ -78,3 +78,22 @@ th {
 .badge-derived {
   background: #a16207;
 }
+.badge-unknown {
+  background: #52525b;
+}
+.reason {
+  font-size: 13px;
+  color: #3f3f46;
+}
+.origins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+.result-allow {
+  color: #15803d;
+}
+.result-deny {
+  color: #b91c1c;
+}

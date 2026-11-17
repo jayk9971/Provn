@@ -107,6 +107,27 @@ export interface Approval {
 /** A proposal waiting for the user's decision. Returned by `GET /approvals`. */
 export interface PendingApproval {
   proposal: PaymentProposal;
+  /** Send this back unchanged when approving: it binds the approval to these exact details. */
   paymentHash: string;
   expiresAt: string;
+  /** Why the policy wanted the user to decide, e.g. "This is the first payment to this recipient." */
+  reasonForUser: string;
+  /** Where each payment field came from, for the dashboard to show. */
+  fieldOrigins: FieldOrigin[];
+}
+
+/**
+ * Result of approving or rejecting a pending payment. Returned by
+ * `POST /approvals/:id/approve` and `POST /approvals/:id/reject`.
+ */
+export interface ApprovalResult {
+  /** Present when the user approved; null when they rejected. */
+  approval: Approval | null;
+  /**
+   * What happened next. "allow" means the payment was sent; "deny" means it was not (the user
+   * rejected it, or it now breaks a hard limit, or the payment failed). See `ruleId`.
+   */
+  decision: Decision;
+  /** Onchain transaction hash if the payment was sent, otherwise null. */
+  txHash: string | null;
 }

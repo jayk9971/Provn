@@ -61,7 +61,12 @@ export const CreateTaskBodySchema = MandateFormSchema.extend({
 /** POST /approvals/:id/approve */
 export const ApproveBodySchema = z.object({
   paymentHash: z.string().min(1),
-  approvedBy: z.string().min(1),
+  approvedBy: z.string().min(1).max(100),
+});
+
+/** POST /approvals/:id/reject */
+export const RejectBodySchema = z.object({
+  rejectedBy: z.string().min(1).max(100),
 });
 
 /** MCP tool `pay(recipient, amount, memo)` */

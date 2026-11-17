@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { StubApprovalService, type ApprovalService } from "./approvals/index.js";
+import { InMemoryApprovalService, type ApprovalService } from "./approvals/index.js";
 import { SqliteAuditLog, type AuditLog } from "./audit/index.js";
 import type { GatewayConfig } from "./config.js";
 import { openDatabase } from "./db.js";
@@ -37,7 +37,8 @@ export function createServices(config: GatewayConfig): Services {
   const intake = new FormIntake(ledger);
   const fetcher = new StubFetcher(ledger);
   const history = new InMemoryPaymentHistory();
-  const policy = new RulesPolicyEngine(loadPolicy(config.policyPath), history);  const approvals = new StubApprovalService();
+  const policy = new RulesPolicyEngine(loadPolicy(config.policyPath), history);
+  const approvals = new InMemoryApprovalService();
   const wallet =
     config.walletAdapter === "circle-dev"
       ? CircleDevWalletAdapter.fromEnv()

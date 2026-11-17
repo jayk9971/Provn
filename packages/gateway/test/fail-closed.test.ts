@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { StubApprovalService } from "../src/approvals/index.js";
+import { InMemoryApprovalService } from "../src/approvals/index.js";
 import { SqliteAuditLog } from "../src/audit/index.js";
 import { openDatabase } from "../src/db.js";
 import { FormIntake } from "../src/intake/index.js";
@@ -31,7 +31,7 @@ describe("payment path fails closed", () => {
       trace: traceFields,
       policy: new RulesPolicyEngine(loadPolicy(), history),
       history,
-      approvals: new StubApprovalService(),
+      approvals: new InMemoryApprovalService(),
       wallet,
       audit: new SqliteAuditLog(db),
     };
