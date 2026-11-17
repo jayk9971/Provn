@@ -29,8 +29,12 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const api = {
-  createTask: (userRequest: string) =>
-    call<Task>("/tasks", json({ userRequest }), { ...MOCK_TASK, userRequest }),
+  createTask: (body: {
+    userRequest: string;
+    budgetUsdc?: string;
+    allowedVendors?: string[];
+    expiresInMinutes?: number;
+  }) => call<Task>("/tasks", json(body), { ...MOCK_TASK, userRequest: body.userRequest }),
   getLedger: (taskId: string) =>
     call<LedgerEntry[]>(`/tasks/${taskId}/ledger`, undefined, MOCK_LEDGER),
   listApprovals: () => call<PendingApproval[]>("/approvals", undefined, MOCK_APPROVALS),

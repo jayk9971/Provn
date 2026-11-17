@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { StubApprovalService } from "../src/approvals/index.js";
 import { SqliteAuditLog } from "../src/audit/index.js";
 import { openDatabase } from "../src/db.js";
-import { StubIntake } from "../src/intake/index.js";
+import { FormIntake } from "../src/intake/index.js";
 import { SqliteLedger } from "../src/ledger/index.js";
 import { PaymentPipeline, type PipelineDeps } from "../src/payment/pipeline.js";
 import { InMemoryPaymentHistory, loadPolicy, RulesPolicyEngine } from "../src/policy/index.js";
@@ -22,7 +22,7 @@ describe("payment path fails closed", () => {
   beforeEach(async () => {
     const db = openDatabase(":memory:");
     const ledger = new SqliteLedger(db);
-    const intake = new StubIntake(ledger);
+    const intake = new FormIntake(ledger);
     wallet = new MockWalletAdapter();
     const history = new InMemoryPaymentHistory();
     deps = {

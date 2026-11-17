@@ -57,7 +57,8 @@ export function createApp(services: Services, config: GatewayConfig): Hono {
   app.post("/tasks", async (c) => {
     const body = await parseBody(c, CreateTaskBodySchema);
     if (body instanceof Response) return body;
-    const task = await services.intake.createTask(body.userRequest);
+    const { userRequest, ...form } = body;
+    const task = await services.intake.createTask(userRequest, form);
     return c.json(task, 201);
   });
 

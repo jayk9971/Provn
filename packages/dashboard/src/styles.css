@@ -29,9 +29,20 @@ section h2 {
   margin: 0 0 12px;
   font-size: 16px;
 }
-textarea {
+label {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+}
+textarea,
+input {
+  display: block;
   width: 100%;
   box-sizing: border-box;
+  margin-top: 4px;
+}
+section > button {
+  margin-top: 12px;
 }
 table {
   width: 100%;

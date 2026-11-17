@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { openDatabase } from "../src/db.js";
 import { StubFetcher } from "../src/fetcher/index.js";
-import { StubIntake } from "../src/intake/index.js";
+import { FormIntake } from "../src/intake/index.js";
 import { SqliteLedger } from "../src/ledger/index.js";
 import { loadPolicy } from "../src/policy/index.js";
 import { traceFields } from "../src/trace/index.js";
@@ -17,7 +17,7 @@ function setup() {
 describe("ledger", () => {
   it("appends entries and lists them by task", async () => {
     const { ledger } = setup();
-    const intake = new StubIntake(ledger);
+    const intake = new FormIntake(ledger);
     const taskA = await intake.createTask("task A request");
     const taskB = await intake.createTask("task B request");
     expect(ledger.listByTask(taskA.id).map((entry) => entry.content)).toEqual(["task A request"]);
@@ -26,7 +26,7 @@ describe("ledger", () => {
 
   it("is append-only", async () => {
     const { db, ledger } = setup();
-    const task = await new StubIntake(ledger).createTask("hello");
+    const task = await new FormIntake(ledger).createTask("hello");
     expect(() => db.prepare("DELETE FROM ledger_entries").run()).toThrow(/append-only/);
     expect(ledger.listByTask(task.id)).toHaveLength(1);
   });
@@ -35,7 +35,7 @@ describe("ledger", () => {
 describe("intake", () => {
   it("records the user request as trusted and returns a valid mandate", async () => {
     const { ledger } = setup();
-    const task = await new StubIntake(ledger).createTask("Buy one report");
+    const task = await new FormIntake(ledger).createTask("Buy one report");
     const [entry] = ledger.listByTask(task.id);
     expect(entry?.trust).toBe("trusted");
     expect(entry?.source).toBe("user");

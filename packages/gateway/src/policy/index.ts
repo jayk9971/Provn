@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Decision, FieldOrigin, Mandate, PaymentProposal } from "@provn/shared";
 import { fromBaseUnits, toBaseUnits } from "@provn/shared";
 import { parse } from "yaml";
+import { normalizeVendor } from "../util.js";
 import type { PaymentHistory } from "./history.js";
 import { PolicyFileSchema, type PolicyFile, type PolicyRule } from "./schema.js";
 
@@ -180,17 +181,6 @@ function isInPlan(
   const allowed = new Set(mandate.allowedVendors.map(normalizeVendor));
   if (allowed.has(normalizeVendor(proposal.recipient))) return true;
   return proposal.requestedHost ? allowed.has(normalizeVendor(proposal.requestedHost)) : false;
-}
-
-/**
- * Lowercase, and drop a scheme, port, path or trailing dot, so "paid-api.example" matches
- * "https://Paid-API.example:3002/report". Addresses are just lowercased.
- */
-function normalizeVendor(vendor: string): string {
-  const trimmed = vendor.trim().toLowerCase();
-  if (/^0x[0-9a-f]{40}$/.test(trimmed)) return trimmed;
-  const withoutScheme = trimmed.replace(/^[a-z]+:\/\//, "");
-  return (withoutScheme.split(/[/:?#]/)[0] ?? "").replace(/\.$/, "");
 }
 
 function decision(

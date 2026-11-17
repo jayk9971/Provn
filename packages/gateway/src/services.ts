@@ -4,7 +4,7 @@ import { SqliteAuditLog, type AuditLog } from "./audit/index.js";
 import type { GatewayConfig } from "./config.js";
 import { openDatabase } from "./db.js";
 import { StubFetcher, type Fetcher } from "./fetcher/index.js";
-import { StubIntake, type Intake } from "./intake/index.js";
+import { FormIntake, type Intake } from "./intake/index.js";
 import { SqliteLedger, type Ledger } from "./ledger/index.js";
 import { PaymentPipeline } from "./payment/pipeline.js";
 import {
@@ -34,7 +34,7 @@ export interface Services {
 export function createServices(config: GatewayConfig): Services {
   const db = openDatabase(config.dbPath);
   const ledger = new SqliteLedger(db);
-  const intake = new StubIntake(ledger);
+  const intake = new FormIntake(ledger);
   const fetcher = new StubFetcher(ledger);
   const history = new InMemoryPaymentHistory();
   const policy = new RulesPolicyEngine(loadPolicy(config.policyPath), history);  const approvals = new StubApprovalService();
