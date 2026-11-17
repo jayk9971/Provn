@@ -60,6 +60,17 @@ describe("GET /premium-report", () => {
   });
 });
 
+describe("GET /search", () => {
+  it("returns 200 and contains NEW_VENDOR_URL from env", async () => {
+    const searchApp = createPaidApi({ NEW_VENDOR_URL: "http://localhost:9999" });
+    const res = await searchApp.request("/search?q=ev");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("http://localhost:9999");
+    expect(text).toContain('Results for "ev"');
+  });
+});
+
 describe("attack endpoints", () => {
   it("/inject/quantity asks to buy 10 units", async () => {
     const text = await (await app.request("/inject/quantity")).text();
