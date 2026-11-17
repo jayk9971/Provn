@@ -3,7 +3,7 @@ import type { ApprovalService } from "../approvals/index.js";
 import type { AuditLog } from "../audit/index.js";
 import type { Intake } from "../intake/index.js";
 import type { Ledger } from "../ledger/index.js";
-import type { PolicyEngine } from "../policy/index.js";
+import type { PaymentHistory, PolicyEngine } from "../policy/index.js";
 import type { TraceFields } from "../trace/index.js";
 import { newId } from "../util.js";
 import { PayInputSchema } from "../validation.js";
@@ -14,6 +14,7 @@ export interface PipelineDeps {
   ledger: Ledger;
   trace: TraceFields;
   policy: PolicyEngine;
+  history: PaymentHistory;
   approvals: ApprovalService;
   wallet: WalletAdapter;
   audit: AuditLog;
@@ -66,6 +67,12 @@ export class PaymentPipeline {
           idempotencyKey: proposal.id,
           to: proposal.recipient,
           amountUsdc: proposal.amountUsdc,
+        });
+        this.deps.history.record({
+          taskId: proposal.taskId,
+          recipient: proposal.recipient,
+          amountUsdc: proposal.amountUsdc,
+          at: new Date(),
         });
       }
       return decision;

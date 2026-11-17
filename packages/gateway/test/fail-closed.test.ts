@@ -5,7 +5,7 @@ import { openDatabase } from "../src/db.js";
 import { StubIntake } from "../src/intake/index.js";
 import { SqliteLedger } from "../src/ledger/index.js";
 import { PaymentPipeline, type PipelineDeps } from "../src/payment/pipeline.js";
-import { loadPolicy, StubPolicyEngine } from "../src/policy/index.js";
+import { InMemoryPaymentHistory, loadPolicy, RulesPolicyEngine } from "../src/policy/index.js";
 import { traceFields } from "../src/trace/index.js";
 import { MockWalletAdapter } from "../src/wallet/index.js";
 
@@ -24,11 +24,13 @@ describe("payment path fails closed", () => {
     const ledger = new SqliteLedger(db);
     const intake = new StubIntake(ledger);
     wallet = new MockWalletAdapter();
+    const history = new InMemoryPaymentHistory();
     deps = {
       intake,
       ledger,
       trace: traceFields,
-      policy: new StubPolicyEngine(loadPolicy()),
+      policy: new RulesPolicyEngine(loadPolicy(), history),
+      history,
       approvals: new StubApprovalService(),
       wallet,
       audit: new SqliteAuditLog(db),
@@ -119,10 +121,10 @@ describe("payment path fails closed", () => {
     expect(decision.outcome).toBe("deny");
   });
 
-  it("denies by default while the policy engine is a stub", async () => {
+  it("denies a recipient that can't be traced to anything the task has seen", async () => {
     const decision = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
-    expect(decision.ruleId).toBe("stub.not_implemented");
+    expect(decision.ruleId).toBe("deny-untrusted-or-unknown-recipient");
     expect(wallet.transfers).toHaveLength(0);
   });
 });

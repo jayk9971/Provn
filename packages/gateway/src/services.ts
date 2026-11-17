@@ -7,7 +7,13 @@ import { StubFetcher, type Fetcher } from "./fetcher/index.js";
 import { StubIntake, type Intake } from "./intake/index.js";
 import { SqliteLedger, type Ledger } from "./ledger/index.js";
 import { PaymentPipeline } from "./payment/pipeline.js";
-import { loadPolicy, StubPolicyEngine, type PolicyEngine } from "./policy/index.js";
+import {
+  InMemoryPaymentHistory,
+  loadPolicy,
+  RulesPolicyEngine,
+  type PaymentHistory,
+  type PolicyEngine,
+} from "./policy/index.js";
 import { traceFields } from "./trace/index.js";
 import { CircleDevWalletAdapter, MockWalletAdapter, type WalletAdapter } from "./wallet/index.js";
 
@@ -17,6 +23,7 @@ export interface Services {
   intake: Intake;
   fetcher: Fetcher;
   policy: PolicyEngine;
+  history: PaymentHistory;
   approvals: ApprovalService;
   wallet: WalletAdapter;
   audit: AuditLog;
@@ -29,8 +36,8 @@ export function createServices(config: GatewayConfig): Services {
   const ledger = new SqliteLedger(db);
   const intake = new StubIntake(ledger);
   const fetcher = new StubFetcher(ledger);
-  const policy = new StubPolicyEngine(loadPolicy(config.policyPath));
-  const approvals = new StubApprovalService();
+  const history = new InMemoryPaymentHistory();
+  const policy = new RulesPolicyEngine(loadPolicy(config.policyPath), history);  const approvals = new StubApprovalService();
   const wallet =
     config.walletAdapter === "circle-dev"
       ? CircleDevWalletAdapter.fromEnv()
@@ -41,9 +48,10 @@ export function createServices(config: GatewayConfig): Services {
     ledger,
     trace: traceFields,
     policy,
+    history,
     approvals,
     wallet,
     audit,
   });
-  return { db, ledger, intake, fetcher, policy, approvals, wallet, audit, pipeline };
+  return { db, ledger, intake, fetcher, policy, history, approvals, wallet, audit, pipeline };
 }
