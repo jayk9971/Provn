@@ -83,8 +83,12 @@ describe("policy file", () => {
 describe("mock wallet", () => {
   it("records transfers", async () => {
     const wallet = new MockWalletAdapter();
-    const { txHash } = await wallet.transfer("0xabc", "1.00");
+    const { txHash } = await wallet.transfer({
+      idempotencyKey: "prop_1",
+      to: "0xabc",
+      amountUsdc: "1.00",
+    });
     expect(txHash).toMatch(/^0xmock/);
-    expect(wallet.transfers).toEqual([{ to: "0xabc", amountUsdc: "1.00" }]);
+    expect(wallet.transfers).toEqual([{ to: "0xabc", amountUsdc: "1.00", txHash }]);
   });
 });

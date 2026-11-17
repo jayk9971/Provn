@@ -62,7 +62,11 @@ export class PaymentPipeline {
         this.deps.approvals.create(proposal);
       } else if (decision.outcome === "allow") {
         // TODO: record the txHash in the audit log once the transfer succeeds.
-        await this.deps.wallet.transfer(proposal.recipient, proposal.amountUsdc);
+        await this.deps.wallet.transfer({
+          idempotencyKey: proposal.id,
+          to: proposal.recipient,
+          amountUsdc: proposal.amountUsdc,
+        });
       }
       return decision;
     } catch (error) {

@@ -106,10 +106,14 @@ describe("payment path fails closed", () => {
       }),
     };
     deps.wallet = {
+      kind: "failing",
       transfer: async () => {
         throw new Error("circle is down");
       },
-      getBalance: async () => "0",
+      getStatus: async () => {
+        throw new Error("circle is down");
+      },
+      pause: async () => ({ txHash: null }),
     };
     const decision = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
