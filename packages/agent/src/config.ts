@@ -1,4 +1,4 @@
-export type LlmProvider = "anthropic" | "openai" | "groq" | "gemini" | "stub";
+export type LlmProvider = "anthropic" | "openai" | "groq" | "gemini" | "stub" | "scripted";
 
 /**
  * Everything the agent knows. Note what is NOT here: no wallet keys and no payment-provider
@@ -13,6 +13,7 @@ export interface AgentConfig {
   llmApiKey: string | undefined;
   llmModel?: string;
   llmBaseUrl?: string;
+  scriptPath?: string;
 }
 
 /** Read agent settings from env vars and the command line (`agent <taskId>`). */
@@ -27,10 +28,10 @@ export function loadAgentConfig(
   if (!sessionToken) throw new Error("GATEWAY_SESSION_TOKEN must be set");
 
   const llmProvider = (env.LLM_PROVIDER ?? "stub") as LlmProvider;
-  const validProviders: LlmProvider[] = ["anthropic", "openai", "groq", "gemini", "stub"];
+  const validProviders: LlmProvider[] = ["anthropic", "openai", "groq", "gemini", "stub", "scripted"];
   if (!validProviders.includes(llmProvider)) {
     throw new Error(
-      `LLM_PROVIDER must be "anthropic", "openai", "groq", "gemini" or "stub", got "${llmProvider}"`,
+      `LLM_PROVIDER must be "anthropic", "openai", "groq", "gemini", "stub" or "scripted", got "${llmProvider}"`,
     );
   }
 
@@ -42,5 +43,6 @@ export function loadAgentConfig(
     llmApiKey: env.LLM_API_KEY || undefined,
     llmModel: env.LLM_MODEL || undefined,
     llmBaseUrl: env.LLM_BASE_URL || undefined,
+    scriptPath: env.AGENT_SCRIPT_PATH || undefined,
   };
 }

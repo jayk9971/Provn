@@ -1,5 +1,6 @@
 import type { AgentConfig } from "./config.js";
 import { OpenAiCompatLlmClient } from "./llm-openai-compat.js";
+import { readFileSync } from "node:fs";
 
 /** A tool the model may call. Mirrors an MCP tool listing. */
 export interface ToolSpec {
@@ -43,6 +44,33 @@ export class StubLlmClient implements LlmClient {
   }
 }
 
+/** Scripted LLM client for deterministic demos. */
+export class ScriptedLlmClient implements LlmClient {
+  private steps: { text: string; toolCalls: { name: string; arguments: Record<string, unknown> }[] }[];
+  private currentStep = 0;
+
+  constructor(scriptPath: string) {
+    const data = JSON.parse(readFileSync(scriptPath, "utf-8"));
+    this.steps = data;
+  }
+
+  async complete(_messages: Message[], _tools: ToolSpec[]): Promise<LlmResponse> {
+    if (this.currentStep >= this.steps.length) {
+      return { text: "Script finished.", toolCalls: [] };
+    }
+
+    const step = this.steps[this.currentStep++];
+    return {
+      text: step.text,
+      toolCalls: step.toolCalls.map((call, index) => ({
+        id: `script_${this.currentStep}_${index}`,
+        name: call.name,
+        arguments: call.arguments,
+      })),
+    };
+  }
+}
+
 /** Pick the LLM client named by LLM_PROVIDER. */
 export function createLlmClient(config: AgentConfig): LlmClient {
   switch (config.llmProvider) {
@@ -58,5 +86,11 @@ export function createLlmClient(config: AgentConfig): LlmClient {
       return new StubLlmClient(config.llmProvider);
     case "stub":
       return new StubLlmClient(config.llmProvider);
+    case "scripted": {
+      if (!config.scriptPath) {
+        throw new Error(`AGENT_SCRIPT_PATH is required for provider "scripted"`);
+      }
+      return new ScriptedLlmClient(config.scriptPath);
+    }
   }
 }

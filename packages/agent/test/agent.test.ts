@@ -1,8 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { loadAgentConfig } from "../src/config.js";
 import { createLlmClient, type LlmClient, type LlmResponse, type Message } from "../src/llm.js";
 import { OpenAiCompatLlmClient } from "../src/llm-openai-compat.js";
+import { ScriptedLlmClient } from "../src/llm-scripted.js";
 import { runAgentLoop } from "../src/loop.js";
 
 describe("loadAgentConfig", () => {
@@ -131,7 +132,7 @@ describe("OpenAiCompatLlmClient", () => {
 
     const client = new OpenAiCompatLlmClient(baseConfig);
     const res = await client.complete([], []);
-    expect(res.toolCalls[0].arguments).toEqual({});
+    expect(res.toolCalls[0]?.arguments).toEqual({});
   });
 
   it("generates tool-call id when missing", async () => {
@@ -156,7 +157,7 @@ describe("OpenAiCompatLlmClient", () => {
 
     const client = new OpenAiCompatLlmClient(baseConfig);
     const res = await client.complete([], []);
-    expect(res.toolCalls[0].id).toBe("call_1");
+    expect(res.toolCalls[0]?.id).toBe("call_1");
   });
 
   it("retries on 429 and succeeds", async () => {
@@ -182,6 +183,27 @@ describe("OpenAiCompatLlmClient", () => {
     const res = await client.complete([], []);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(res.text).toBe("Success after retry");
+  });
+});
+
+describe("ScriptedLlmClient", () => {
+  it("replays script in order and finishes", async () => {
+    const scriptPath = "./demo-script.example.json";
+    writeFileSync(scriptPath, JSON.stringify([
+      { text: "step 1", toolCalls: [{ name: "t1", arguments: { a: 1 } }] },
+      { text: "step 2", toolCalls: [{ name: "t2", arguments: { b: 2 } }] }
+    ]));
+
+    const client = new ScriptedLlmClient(scriptPath);
+
+    const res1 = await client.complete([], []);
+    expect(res1).toEqual({ text: "step 1", toolCalls: [{ id: "script_1_0", name: "t1", arguments: { a: 1 } }] });
+
+    const res2 = await client.complete([], []);
+    expect(res2).toEqual({ text: "step 2", toolCalls: [{ id: "script_2_0", name: "t2", arguments: { b: 2 } }] });
+
+    const res3 = await client.complete([], []);
+    expect(res3).toEqual({ text: "Script finished.", toolCalls: [] });
   });
 });
 
