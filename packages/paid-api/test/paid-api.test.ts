@@ -12,6 +12,8 @@ describe("GET /report", () => {
       price: "0.05",
       payee: "0x" + "11".repeat(20),
       network: "arc-testnet",
+      chainId: 5042002,
+      token: "0x3600000000000000000000000000000000000000",
     });
   });
 

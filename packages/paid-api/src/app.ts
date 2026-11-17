@@ -1,4 +1,4 @@
-import { ARC_TESTNET_NETWORK } from "@provn/shared";
+import { ARC_TESTNET_CHAIN_ID, ARC_TESTNET_NETWORK, ARC_USDC_ADDRESS } from "@provn/shared";
 import { Hono } from "hono";
 
 /**
@@ -45,7 +45,16 @@ export function createPaidApi(env: NodeJS.ProcessEnv = process.env): Hono {
   app.get("/report", async (c) => {
     const txHash = c.req.header(PAYMENT_HEADER);
     if (!txHash || !(await verifyPayment(txHash))) {
-      return c.json({ price: REPORT_PRICE_USDC, payee, network: ARC_TESTNET_NETWORK }, 402);
+      return c.json(
+        {
+          price: REPORT_PRICE_USDC,
+          payee,
+          network: ARC_TESTNET_NETWORK,
+          chainId: ARC_TESTNET_CHAIN_ID,
+          token: ARC_USDC_ADDRESS,
+        },
+        402,
+      );
     }
     return c.text("EV battery market report Q4: capacity grew 34% year over year.");
   });
