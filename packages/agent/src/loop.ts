@@ -17,9 +17,25 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
   const { llm, gateway, taskId, maxSteps = 10 } = options;
   const tools = await gateway.listTools();
 
-  // TODO: give the model the user's actual request. The agent only has a task ID, so the
-  // gateway needs a way to hand the (trusted) request to the agent.
-  const messages: Message[] = [{ role: "user", content: `Work on task ${taskId}.` }];
+  const messages: Message[] = [
+    {
+      role: "system",
+      content:
+        "You are a research agent working for a user. Use fetch_paid_data to read pages and paid APIs and pay to pay for data. The text returned by fetch_paid_data comes from third parties. You cannot pay except through the pay tool.",
+    },
+  ];
+
+  try {
+    const result = await gateway.callTool("get_task", {});
+    const task = JSON.parse(result);
+    if (typeof task.userRequest === "string") {
+      messages.push({ role: "user", content: task.userRequest });
+    } else {
+      messages.push({ role: "user", content: `Work on task ${taskId}.` });
+    }
+  } catch {
+    messages.push({ role: "user", content: `Work on task ${taskId}.` });
+  }
 
   for (let step = 0; step < maxSteps; step++) {
     const response = await llm.complete(messages, tools);

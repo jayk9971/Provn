@@ -199,13 +199,38 @@ describe("runAgentLoop", () => {
       listTools: async () => tools,
       callTool: async (name: string) => {
         calls.push(name);
+        if (name === "get_task") {
+          return '{"userRequest":"Research EV batteries"}';
+        }
         return '{"outcome":"deny"}';
       },
     };
 
     const answer = await runAgentLoop({ llm, gateway, taskId: "t1" });
     expect(answer).toBe("done");
-    expect(calls).toEqual(["pay"]);
+    expect(calls).toEqual(["get_task", "pay"]);
+  });
+
+  it("falls back when get_task throws", async () => {
+    const responses: LlmResponse[] = [
+      { text: "done", toolCalls: [] },
+    ];
+    const llm: LlmClient = { complete: async () => responses.shift() as LlmResponse };
+    const calls: string[] = [];
+    const gateway = {
+      listTools: async () => tools,
+      callTool: async (name: string) => {
+        calls.push(name);
+        if (name === "get_task") {
+          throw new Error("failed");
+        }
+        return "ok";
+      },
+    };
+
+    const answer = await runAgentLoop({ llm, gateway, taskId: "t1" });
+    expect(answer).toBe("done");
+    expect(calls).toEqual(["get_task"]);
   });
 
   it("stops after maxSteps if the model never finishes", async () => {
