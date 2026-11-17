@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import { loadAgentConfig } from "../src/config.js";
-import type { LlmClient, LlmResponse } from "../src/llm.js";
+import { createLlmClient, type LlmClient, type LlmResponse } from "../src/llm.js";
+import { OpenAiCompatLlmClient } from "../src/llm-openai-compat.js";
 import { runAgentLoop } from "../src/loop.js";
 
 describe("loadAgentConfig", () => {
@@ -21,6 +22,166 @@ describe("loadAgentConfig", () => {
     expect(() =>
       loadAgentConfig({ GATEWAY_SESSION_TOKEN: "t", LLM_PROVIDER: "nope" }, ["task_1"]),
     ).toThrow(/LLM_PROVIDER/);
+  });
+});
+
+describe("createLlmClient", () => {
+  it("throws when model is missing for openai/groq/gemini", () => {
+    for (const provider of ["openai", "groq", "gemini"] as const) {
+      const config = loadAgentConfig({ GATEWAY_SESSION_TOKEN: "t", LLM_PROVIDER: provider }, [
+        "task_1",
+      ]);
+      expect(() => createLlmClient(config)).toThrow(/LLM_MODEL is required/);
+    }
+  });
+
+  it("succeeds when model is provided", () => {
+    const config = loadAgentConfig(
+      { GATEWAY_SESSION_TOKEN: "t", LLM_PROVIDER: "openai", LLM_MODEL: "gpt-4o" },
+      ["task_1"],
+    );
+    const client = createLlmClient(config);
+    expect(client).toBeInstanceOf(OpenAiCompatLlmClient);
+  });
+});
+
+describe("OpenAiCompatLlmClient", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const baseConfig = {
+    gatewayUrl: "http://localhost:3001",
+    sessionToken: "token",
+    taskId: "task_1",
+    llmProvider: "openai" as const,
+    llmApiKey: "key",
+    llmModel: "gpt-4o",
+  };
+
+  it("handles plain text reply", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { role: "assistant", content: "Hello world" } }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const client = new OpenAiCompatLlmClient(baseConfig);
+    const res = await client.complete([{ role: "user", content: "Hi" }], []);
+    expect(res).toEqual({ text: "Hello world", toolCalls: [] });
+  });
+
+  it("handles reply with one tool call", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: null,
+                tool_calls: [
+                  {
+                    id: "call_abc",
+                    type: "function",
+                    function: { name: "pay", arguments: '{"amount":"5"}' },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const client = new OpenAiCompatLlmClient(baseConfig);
+    const res = await client.complete([{ role: "user", content: "Pay 5" }], []);
+    expect(res).toEqual({
+      text: "",
+      toolCalls: [{ id: "call_abc", name: "pay", arguments: { amount: "5" } }],
+    });
+  });
+
+  it("falls back to empty object on invalid JSON arguments", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                tool_calls: [
+                  {
+                    id: "call_1",
+                    function: { name: "pay", arguments: "invalid json {" },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const client = new OpenAiCompatLlmClient(baseConfig);
+    const res = await client.complete([], []);
+    expect(res.toolCalls[0].arguments).toEqual({});
+  });
+
+  it("generates tool-call id when missing", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                tool_calls: [
+                  {
+                    function: { name: "pay", arguments: "{}" },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const client = new OpenAiCompatLlmClient(baseConfig);
+    const res = await client.complete([], []);
+    expect(res.toolCalls[0].id).toBe("call_1");
+  });
+
+  it("retries on 429 and succeeds", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("Rate limited", {
+          status: 429,
+          headers: { "retry-after": "1" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "Success after retry" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    globalThis.fetch = fetchMock;
+
+    const client = new OpenAiCompatLlmClient(baseConfig);
+    const res = await client.complete([], []);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(res.text).toBe("Success after retry");
   });
 });
 

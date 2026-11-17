@@ -1,4 +1,5 @@
 import type { AgentConfig } from "./config.js";
+import { OpenAiCompatLlmClient } from "./llm-openai-compat.js";
 
 /** A tool the model may call. Mirrors an MCP tool listing. */
 export interface ToolSpec {
@@ -14,7 +15,7 @@ export interface ToolCall {
 }
 
 export interface Message {
-  role: "user" | "assistant" | "tool";
+  role: "user" | "assistant" | "tool" | "system";
   content: string;
   /** For role "tool": which tool call this message answers. */
   toolCallId?: string;
@@ -38,8 +39,6 @@ export class StubLlmClient implements LlmClient {
   constructor(private readonly provider: string) {}
 
   async complete(_messages: Message[], _tools: ToolSpec[]): Promise<LlmResponse> {
-    // TODO: call the real provider API with `messages` and `tools`, and map its tool-call
-    // format to ToolCall. Do this once per provider in createLlmClient below.
     return { text: `TODO: ${this.provider} LLM call is not implemented.`, toolCalls: [] };
   }
 }
@@ -47,8 +46,16 @@ export class StubLlmClient implements LlmClient {
 /** Pick the LLM client named by LLM_PROVIDER. */
 export function createLlmClient(config: AgentConfig): LlmClient {
   switch (config.llmProvider) {
-    case "anthropic": // TODO: AnthropicLlmClient using config.llmApiKey
-    case "openai": // TODO: OpenAiLlmClient using config.llmApiKey
+    case "openai":
+    case "groq":
+    case "gemini": {
+      if (!config.llmModel) {
+        throw new Error(`LLM_MODEL is required for provider "${config.llmProvider}"`);
+      }
+      return new OpenAiCompatLlmClient(config);
+    }
+    case "anthropic":
+      return new StubLlmClient(config.llmProvider);
     case "stub":
       return new StubLlmClient(config.llmProvider);
   }
