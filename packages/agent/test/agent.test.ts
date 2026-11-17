@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { loadAgentConfig } from "../src/config.js";
-import { createLlmClient, type LlmClient, type LlmResponse } from "../src/llm.js";
+import { createLlmClient, type LlmClient, type LlmResponse, type Message } from "../src/llm.js";
 import { OpenAiCompatLlmClient } from "../src/llm-openai-compat.js";
 import { runAgentLoop } from "../src/loop.js";
 
@@ -233,11 +233,72 @@ describe("runAgentLoop", () => {
     expect(calls).toEqual(["get_task"]);
   });
 
+  it("does not crash when a tool throws", async () => {
+    const responses: LlmResponse[] = [
+      { text: "err", toolCalls: [{ id: "c1", name: "pay", arguments: { amount: "1" } }] },
+      { text: "done", toolCalls: [] },
+    ];
+    const llm: LlmClient = { complete: async () => responses.shift() as LlmResponse };
+    const gateway = {
+      listTools: async () => tools,
+      callTool: async (name: string) => {
+        if (name === "get_task") return '{"userRequest":"x"}';
+        throw new Error("fail");
+      },
+    };
+
+    const answer = await runAgentLoop({ llm, gateway, taskId: "t1" });
+    expect(answer).toBe("done");
+  });
+
+  it("truncates long tool results", async () => {
+    const responses: LlmResponse[] = [
+      { text: "long", toolCalls: [{ id: "c1", name: "pay", arguments: {} }] },
+      { text: "done", toolCalls: [] },
+    ];
+    const llm: LlmClient = { complete: async () => responses.shift() as LlmResponse };
+    const messages: Message[] = [];
+    const gateway = {
+      listTools: async () => tools,
+      callTool: async () => "a".repeat(5000),
+    };
+
+    // We need to check messages passed to llm.complete, so let's mock it
+    const llmWithSpy: LlmClient = {
+      complete: vi.fn().mockImplementation((msgs) => {
+        messages.push(...msgs);
+        return responses.shift() as LlmResponse;
+      }),
+    };
+
+    await runAgentLoop({ llm: llmWithSpy, gateway, taskId: "t1" });
+    const toolMsg = messages.find((m) => m.role === "tool");
+    expect(toolMsg?.content.length).toBe(4000 + "[truncated]".length);
+    expect(toolMsg?.content).toContain("[truncated]");
+  });
+
+  it("stops on three identical tool calls", async () => {
+    const responses: LlmResponse[] = [
+      { text: "pay", toolCalls: [{ id: "c1", name: "pay", arguments: { a: 1 } }] },
+      { text: "pay", toolCalls: [{ id: "c2", name: "pay", arguments: { a: 1 } }] },
+      { text: "pay", toolCalls: [{ id: "c3", name: "pay", arguments: { a: 1 } }] },
+    ];
+    const llm: LlmClient = { complete: async () => responses.shift() as LlmResponse };
+    const gateway = {
+      listTools: async () => tools,
+      callTool: async () => "ok",
+    };
+
+    const answer = await runAgentLoop({ llm, gateway, taskId: "t1" });
+    expect(answer).toBe("Stopped: repeated identical tool call.");
+  });
+
   it("stops after maxSteps if the model never finishes", async () => {
+    let callCount = 0;
     const llm: LlmClient = {
       complete: async () => ({
         text: "again",
-        toolCalls: [{ id: "c", name: "pay", arguments: {} }],
+        toolCalls: [{ id: `c${callCount++}`, name: "pay", arguments: { count: callCount } }],
       }),
     };
     const gateway = { listTools: async () => tools, callTool: async () => "ok" };

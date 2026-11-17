@@ -37,6 +37,9 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
     messages.push({ role: "user", content: `Work on task ${taskId}.` });
   }
 
+  let lastCall: string | null = null;
+  let callCount = 0;
+
   for (let step = 0; step < maxSteps; step++) {
     const response = await llm.complete(messages, tools);
     messages.push({ role: "assistant", content: response.text, toolCalls: response.toolCalls });
@@ -44,8 +47,26 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
     if (response.toolCalls.length === 0) return response.text;
 
     for (const call of response.toolCalls) {
-      // The gateway decides what happens. A denied payment comes back as a normal result.
-      const result = await gateway.callTool(call.name, call.arguments);
+      const currentCall = `${call.name}:${JSON.stringify(call.arguments)}`;
+      if (currentCall === lastCall) {
+        callCount++;
+      } else {
+        lastCall = currentCall;
+        callCount = 1;
+      }
+
+      if (callCount === 3) return "Stopped: repeated identical tool call.";
+
+      let result: string;
+      try {
+        result = await gateway.callTool(call.name, call.arguments);
+      } catch {
+        result = '{"error":"tool failed"}';
+      }
+
+      if (result.length > 4000) {
+        result = result.substring(0, 4000) + "[truncated]";
+      }
       messages.push({ role: "tool", content: result, toolCallId: call.id });
     }
   }
