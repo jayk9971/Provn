@@ -42,6 +42,23 @@ const MIGRATIONS: string[] = [
   CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log
     BEGIN SELECT RAISE(ABORT, 'audit log is append-only'); END;
   `,
+  // 2: payments that were actually sent, with their tx hash. Append-only, like audit_log.
+  `
+  CREATE TABLE payment_executions (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposal_id       TEXT NOT NULL UNIQUE,
+    task_id           TEXT NOT NULL,
+    recipient         TEXT NOT NULL,
+    amount_base_units TEXT NOT NULL,
+    tx_hash           TEXT NOT NULL,
+    created_at        TEXT NOT NULL
+  );
+  CREATE INDEX payment_executions_tx_hash ON payment_executions (tx_hash);
+  CREATE TRIGGER payment_executions_no_update BEFORE UPDATE ON payment_executions
+    BEGIN SELECT RAISE(ABORT, 'payment executions are append-only'); END;
+  CREATE TRIGGER payment_executions_no_delete BEFORE DELETE ON payment_executions
+    BEGIN SELECT RAISE(ABORT, 'payment executions are append-only'); END;
+  `,
 ];
 
 /** Bring the database up to the latest schema. Safe to call on every startup. */
