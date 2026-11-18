@@ -39,13 +39,11 @@ contract ProvnVault {
     // --------------------------------------------------------------- events
 
     event Spent(address indexed to, uint256 amount);
-    // TODO: a reverted `spend` rolls back its own events, so `Blocked` can never be seen.
-    // Decide whether to emit it from a non-reverting path (return false) or drop it.
-    event Blocked(address indexed to, uint256 amount, string reason);
     event LimitsSet(uint256 perTxMax, uint256 dailyBudget);
     /// @dev Emitted by both `pause` (true) and `unpause` (false).
     event Paused(bool isPaused);
     event AllowlistSet(address indexed account, bool allowed);
+    event SpenderSet(address indexed oldSpender, address indexed newSpender);
 
     // --------------------------------------------------------- revert reasons
 
@@ -116,6 +114,17 @@ contract ProvnVault {
         if (!usdc.transfer(to, amount)) revert TransferFailed();
     }
 
+    /// @notice Spent in the current UTC day. The public `spentToday` can show yesterday's total until the next spend.
+    function spentInCurrentDay() public view returns (uint256) {
+        return _today() > dayStart ? 0 : spentToday;
+    }
+
+    /// @notice Budget left today, in USDC base units.
+    function remainingToday() external view returns (uint256) {
+        uint256 spent = spentInCurrentDay();
+        return dailyBudget > spent ? dailyBudget - spent : 0;
+    }
+
     function setAllowlist(address account, bool allowed) external onlyOwner {
         allowlist[account] = allowed;
         emit AllowlistSet(account, allowed);
@@ -128,11 +137,13 @@ contract ProvnVault {
         emit LimitsSet(perTxMax_, dailyBudget_);
     }
 
-    function pause() external onlyOwner {
+    /// @notice Owner or spender can pause (Provn's emergency stop). Only the owner can unpause.
+    function pause() external {
+        if (msg.sender != owner && msg.sender != spender) revert NotOwner();
         paused = true;
         emit Paused(true);
     }
-
+    
     function unpause() external onlyOwner {
         paused = false;
         emit Paused(false);
@@ -144,7 +155,14 @@ contract ProvnVault {
         if (!usdc.transfer(to, amount)) revert TransferFailed();
     }
 
-    // TODO: add `setSpender` so the owner can rotate Provn's key.
+    /// @notice Update the authorized spender address.
+    function setSpender(address newSpender) external onlyOwner {
+        if (newSpender == address(0)) revert ZeroAddress();
+        address oldSpender = spender;
+        spender = newSpender;
+        emit SpenderSet(oldSpender, newSpender);
+    }
+
     // TODO: add `transferOwnership` (two-step) so ownership can move to a multisig.
 
     // ------------------------------------------------------------- internal
