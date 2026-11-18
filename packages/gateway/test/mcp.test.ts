@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import type { GatewayConfig } from "../src/config.js";
 import { TASK_ID_HEADER } from "@provn/shared";
 import { createApp } from "../src/http/app.js";
-import { createServices } from "../src/services.js";
+import { createServices, type Services } from "../src/services.js";
+import { HttpFetcher } from "../src/fetcher/index.js";
 
 const config: GatewayConfig = {
   port: 0,
@@ -15,8 +16,8 @@ const config: GatewayConfig = {
 };
 
 /** Connect a real MCP client to the gateway app, in-process (no network). */
-async function connect() {
-  const services = createServices(config);
+async function connect(overrides?: Partial<Services>) {
+  const services = createServices(config, overrides);
   const app = createApp(services, config);
   const task = await services.intake.createTask("Buy one report");
 
@@ -41,11 +42,16 @@ describe("gateway MCP server", () => {
   it("exposes fetch_paid_data and pay", async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name).sort()).toEqual(["fetch_paid_data", "pay"]);
+    expect(tools.map((tool) => tool.name).sort()).toEqual(["fetch_paid_data", "get_task", "pay"]);
   });
 
   it("fetch_paid_data writes an untrusted ledger entry", async () => {
-    const { client, services, taskId } = await connect();
+    const servicesForFetcher = createServices(config);
+    const mockFetch = (async () => new Response("hello")) as typeof fetch;
+    const fetcher = new HttpFetcher(servicesForFetcher.ledger, mockFetch);
+
+    const { client, services, taskId } = await connect({ fetcher, ledger: servicesForFetcher.ledger });
+
     await client.callTool({
       name: "fetch_paid_data",
       arguments: { url: "https://vendor.example/report" },

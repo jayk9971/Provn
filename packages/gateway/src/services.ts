@@ -3,7 +3,7 @@ import { StubApprovalService, type ApprovalService } from "./approvals/index.js"
 import { SqliteAuditLog, type AuditLog } from "./audit/index.js";
 import type { GatewayConfig } from "./config.js";
 import { openDatabase } from "./db.js";
-import { StubFetcher, type Fetcher } from "./fetcher/index.js";
+import { HttpFetcher, type Fetcher } from "./fetcher/index.js";
 import { StubIntake, type Intake } from "./intake/index.js";
 import { SqliteLedger, type Ledger } from "./ledger/index.js";
 import { PaymentPipeline } from "./payment/pipeline.js";
@@ -24,11 +24,11 @@ export interface Services {
 }
 
 /** Build every service from config. This is the one place where implementations are chosen. */
-export function createServices(config: GatewayConfig): Services {
+export function createServices(config: GatewayConfig, overrides?: Partial<Services>): Services {
   const db = openDatabase(config.dbPath);
-  const ledger = new SqliteLedger(db);
-  const intake = new StubIntake(ledger);
-  const fetcher = new StubFetcher(ledger);
+  const ledger = overrides?.ledger || new SqliteLedger(db);
+  const intake = overrides?.intake || new StubIntake(ledger);
+  const fetcher = overrides?.fetcher || new HttpFetcher(ledger);
   const policy = new StubPolicyEngine(loadPolicy(config.policyPath));
   const approvals = new StubApprovalService();
   const wallet =

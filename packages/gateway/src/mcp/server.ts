@@ -5,6 +5,10 @@ import type { PaymentContext } from "../payment/pipeline.js";
 import type { Services } from "../services.js";
 import { FetchInputSchema } from "../validation.js";
 
+function wrapUntrusted(host: string, body: string): string {
+  return `<<<UNTRUSTED_CONTENT host=${host}>>>\n${body}\n<<<END_UNTRUSTED_CONTENT>>>`;
+}
+
 function textResult(value: unknown, isError = false): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(value) }], isError };
 }
@@ -31,12 +35,40 @@ export function createMcpServer(context: PaymentContext, services: Services): Mc
       const input = FetchInputSchema.safeParse(args);
       if (!input.success) return textResult({ error: "Invalid URL." }, true);
       try {
-        const result = await services.fetcher.fetch(context.taskId, input.data.url);
-        // TODO: return the untrusted body wrapped in clear delimiters, not just entry IDs.
+        let result = await services.fetcher.fetch(context.taskId, input.data.url);
+
+        if (result.paymentRequired) {
+          const urlObj = new URL(input.data.url);
+          const qtyStr = urlObj.searchParams.get("qty");
+          const quantity = qtyStr && /^[1-9][0-9]*$/.test(qtyStr) ? parseInt(qtyStr, 10) : undefined;
+          const host = urlObj.host;
+
+          const payInput = {
+            recipient: result.paymentRequired.payee,
+            amount: result.paymentRequired.price,
+            memo: `x402 ${host}`,
+          };
+          const { decision, txHash } = await services.pipeline.handlePay(
+            context,
+            payInput,
+            { requestedHost: host, quantity },
+          );
+
+          if (decision.outcome === "allow" && txHash) {
+            result = await services.fetcher.fetch(context.taskId, input.data.url, { "x-payment-tx": txHash });
+          } else {
+            return textResult({
+              status: 402,
+              content: wrapUntrusted(result.paymentRequired.host, result.body),
+              payment: { outcome: decision.outcome, reason: decision.reasonForAgent },
+            });
+          }
+        }
+
+        const host = new URL(input.data.url).host;
         return textResult({
-          status: "ok",
-          ledgerEntryIds: result.entries.map((entry) => entry.id),
-          note: "placeholder: content not returned yet",
+          status: result.status,
+          content: wrapUntrusted(host, result.body),
         });
       } catch (error) {
         console.error("fetch_paid_data failed", error);
@@ -62,6 +94,21 @@ export function createMcpServer(context: PaymentContext, services: Services): Mc
         proposalId: decision.proposalId,
         reason: decision.reasonForAgent,
       });
+    },
+  );
+
+  server.registerTool(
+    "get_task",
+    {
+      description: "Return the user's original request for this task.",
+      inputSchema: {},
+    },
+    async (_args) => {
+      const task = await services.intake.getTask(context.taskId);
+      if (task) {
+        return textResult({ userRequest: task.userRequest });
+      }
+      return textResult({ error: "Unknown task." }, true);
     },
   );
 

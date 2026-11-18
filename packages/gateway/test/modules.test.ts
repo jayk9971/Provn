@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { openDatabase } from "../src/db.js";
-import { StubFetcher } from "../src/fetcher/index.js";
+import { HttpFetcher } from "../src/fetcher/index.js";
 import { StubIntake } from "../src/intake/index.js";
 import { SqliteLedger } from "../src/ledger/index.js";
 import { loadPolicy } from "../src/policy/index.js";
@@ -46,9 +46,30 @@ describe("intake", () => {
 describe("fetcher", () => {
   it("labels fetched content untrusted", async () => {
     const { ledger } = setup();
-    const result = await new StubFetcher(ledger).fetch("task_1", "https://vendor.example/report");
+    const mockFetch = (async () => new Response("hello")) as typeof fetch;
+    const result = await new HttpFetcher(ledger, mockFetch).fetch("task_1", "https://vendor.example/report");
+    expect(result.status).toBe(200);
+    expect(result.body).toBe("hello");
     expect(result.entries.every((entry) => entry.trust === "untrusted")).toBe(true);
-    expect(result.entries.some((entry) => entry.trust === "bound")).toBe(false);
+  });
+
+  it("extracts a bound payee from a 402", async () => {
+    const { ledger } = setup();
+    const payee = "0x" + "11".repeat(20);
+    const mockFetch = (async () => new Response(JSON.stringify({ price: "0.05", payee }), { status: 402 })) as typeof fetch;
+    const result = await new HttpFetcher(ledger, mockFetch).fetch("task_1", "https://vendor.example/report");
+    expect(result.status).toBe(402);
+    expect(result.paymentRequired?.payee).toBe(payee);
+    expect(result.entries.map(e => e.trust)).toEqual(["untrusted", "bound"]);
+  });
+
+  it("truncates long bodies", async () => {
+    const { ledger } = setup();
+    const longBody = "a".repeat(300 * 1024);
+    const mockFetch = (async () => new Response(longBody)) as typeof fetch;
+    const result = await new HttpFetcher(ledger, mockFetch).fetch("task_1", "https://x.y/z");
+    expect(result.body).toContain("[truncated: exceeded 200 KB limit]");
+    expect(result.body.length).toBeLessThan(longBody.length);
   });
 });
 
