@@ -65,5 +65,20 @@ export function createMcpServer(context: PaymentContext, services: Services): Mc
     },
   );
 
+  server.registerTool(
+    "get_task",
+    {
+      description: "Return the user's original request for this task.",
+      inputSchema: {},
+    },
+    async (_args) => {
+      const task = await services.intake.getTask(context.taskId);
+      if (task) {
+        return textResult({ userRequest: task.userRequest });
+      }
+      return textResult({ error: "Unknown task." }, true);
+    },
+  );
+
   return server;
 }

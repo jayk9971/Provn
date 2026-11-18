@@ -38,10 +38,38 @@ function textOf(result: Awaited<ReturnType<Client["callTool"]>>): unknown {
 }
 
 describe("gateway MCP server", () => {
-  it("exposes fetch_paid_data and pay", async () => {
+  it("exposes fetch_paid_data, get_task and pay", async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name).sort()).toEqual(["fetch_paid_data", "pay"]);
+    expect(tools.map((tool) => tool.name).sort()).toEqual(["fetch_paid_data", "get_task", "pay"]);
+  });
+
+  it("get_task returns the user request", async () => {
+    const { client } = await connect();
+    const result = await client.callTool({
+      name: "get_task",
+      arguments: {},
+    });
+    expect(textOf(result)).toEqual({ userRequest: "Buy one report" });
+  });
+
+  it("get_task returns error for unknown task", async () => {
+    const services = createServices(config);
+    const app = createApp(services, config);
+    const transport = new StreamableHTTPClientTransport(new URL("http://gateway.test/mcp"), {
+      requestInit: {
+        headers: { authorization: "Bearer test-token", [TASK_ID_HEADER]: "unknown_task_id" },
+      },
+      fetch: async (input, init) =>
+        app.request(input instanceof URL ? input.toString() : input, init),
+    });
+    const client = new Client({ name: "test-agent", version: "0.0.0" });
+    await client.connect(transport);
+    const result = await client.callTool({
+      name: "get_task",
+      arguments: {},
+    });
+    expect(textOf(result)).toEqual({ error: "Unknown task." });
   });
 
   it("fetch_paid_data writes an untrusted ledger entry", async () => {
