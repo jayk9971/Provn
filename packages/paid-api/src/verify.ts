@@ -66,14 +66,15 @@ export async function verifyPayment(
       if (!log.address || log.address.toLowerCase() !== expectedUsdc) {
         continue;
       }
-      if (!log.topics || log.topics.length < 3) {
+      const [eventTopic, , toTopic] = log.topics ?? [];
+      if (!eventTopic || !toTopic) {
         continue;
       }
-      if (log.topics[0].toLowerCase() !== TRANSFER_TOPIC.toLowerCase()) {
+      if (eventTopic.toLowerCase() !== TRANSFER_TOPIC.toLowerCase()) {
         continue;
       }
 
-      const topic2 = log.topics[2].toLowerCase().replace(/^0x/, "");
+      const topic2 = toTopic.toLowerCase().replace(/^0x/, "");
       if (!topic2.endsWith(targetPayee)) {
         continue;
       }

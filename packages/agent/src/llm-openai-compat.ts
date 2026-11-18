@@ -1,17 +1,32 @@
 import type { AgentConfig } from "./config.js";
 import type { LlmClient, Message, LlmResponse, ToolSpec, ToolCall } from "./llm.js";
 
+const OPENAI_BASE_URL = "https://api.openai.com/v1";
+
 const DEFAULT_BASE_URLS: Record<string, string> = {
-  openai: "https://api.openai.com/v1",
+  openai: OPENAI_BASE_URL,
   groq: "https://api.groq.com/openai/v1",
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
 };
+
+/** The parts of an OpenAI-style chat completion response this client reads. */
+interface ChatCompletion {
+  choices?: {
+    message?: {
+      content?: string | null;
+      tool_calls?: {
+        id?: string;
+        function?: { name?: string; arguments?: string | Record<string, unknown> };
+      }[];
+    };
+  }[];
+}
 
 export class OpenAiCompatLlmClient implements LlmClient {
   private readonly baseUrl: string;
 
   constructor(private readonly config: AgentConfig) {
-    this.baseUrl = (config.llmBaseUrl || DEFAULT_BASE_URLS[config.llmProvider] || DEFAULT_BASE_URLS.openai).replace(/\/+$/, "");
+    this.baseUrl = (config.llmBaseUrl || DEFAULT_BASE_URLS[config.llmProvider] || OPENAI_BASE_URL).replace(/\/+$/, "");
   }
 
   async complete(messages: Message[], tools: ToolSpec[]): Promise<LlmResponse> {
@@ -46,13 +61,16 @@ export class OpenAiCompatLlmClient implements LlmClient {
       body: JSON.stringify(payload),
     });
 
-    const data = (await response.json()) as any;
+    if (!response.ok) {
+      throw new Error(`LLM request failed: HTTP ${response.status} ${await response.text()}`);
+    }
+    const data = (await response.json()) as ChatCompletion;
     const choice = data.choices?.[0];
     const text = choice?.message?.content ?? "";
     const rawToolCalls = choice?.message?.tool_calls ?? [];
 
     let autoCallId = 1;
-    const toolCalls: ToolCall[] = rawToolCalls.map((call: any) => {
+    const toolCalls: ToolCall[] = rawToolCalls.map((call) => {
       let args: Record<string, unknown> = {};
       try {
         if (typeof call.function?.arguments === "string") {

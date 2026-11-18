@@ -1,4 +1,3 @@
-import type { AgentConfig } from "./config.js";
 import type { LlmClient, LlmResponse, Message, ToolSpec } from "./llm.js";
 import { readFileSync } from "node:fs";
 
@@ -12,11 +11,10 @@ export class ScriptedLlmClient implements LlmClient {
   }
 
   async complete(_messages: Message[], _tools: ToolSpec[]): Promise<LlmResponse> {
-    if (this.currentStep >= this.steps.length) {
+    const step = this.steps[this.currentStep++];
+    if (!step) {
       return { text: "Script finished.", toolCalls: [] };
     }
-
-    const step = this.steps[this.currentStep++];
     return {
       text: step.text,
       toolCalls: step.toolCalls.map((call, index) => ({

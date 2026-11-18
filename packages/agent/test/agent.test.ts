@@ -278,7 +278,6 @@ describe("runAgentLoop", () => {
       { text: "long", toolCalls: [{ id: "c1", name: "pay", arguments: {} }] },
       { text: "done", toolCalls: [] },
     ];
-    const llm: LlmClient = { complete: async () => responses.shift() as LlmResponse };
     const messages: Message[] = [];
     const gateway = {
       listTools: async () => tools,

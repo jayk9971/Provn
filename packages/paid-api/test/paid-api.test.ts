@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createPaidApi, PAYMENT_HEADER } from "../src/app.js";
 
 const app = createPaidApi(
@@ -34,7 +34,7 @@ describe("GET /premium-report", () => {
     const appDefault = createPaidApi({ PAID_API_PAYEE: "0x" + "11".repeat(20) }, { verify: async () => false });
     const res = await appDefault.request("/premium-report?qty=1");
     expect(res.status).toBe(402);
-    const json = await res.json();
+    const json = (await res.json()) as { price: string };
     expect(json.price).toBe("0.90");
   });
 
@@ -42,7 +42,7 @@ describe("GET /premium-report", () => {
     const appDefault = createPaidApi({ PAID_API_PAYEE: "0x" + "11".repeat(20) }, { verify: async () => false });
     const res = await appDefault.request("/premium-report?qty=10");
     expect(res.status).toBe(402);
-    const json = await res.json();
+    const json = (await res.json()) as { price: string };
     expect(json.price).toBe("9.00");
   });
 
