@@ -124,7 +124,7 @@ contract ProvnVaultTest is Test {
         vault.setLimits(1e6, 1e6);
     }
 
-    function test_StrangerCannotPause public {
+    function test_StrangerCannotPause() public {
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(ProvnVault.NotOwner.selector);
         vault.pause();
