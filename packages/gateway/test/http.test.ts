@@ -41,15 +41,21 @@ describe("gateway HTTP routes", () => {
     expect(ledger.map((entry) => entry.trust)).toEqual(["trusted"]);
   });
 
-  it("GET /approvals returns an empty list from the stub", async () => {
+  it("GET /approvals returns an empty list when nothing is pending", async () => {
     const res = await app.request("/approvals");
     expect(await res.json()).toEqual([]);
   });
 
-  it("POST /approvals/:id/approve validates the body, then returns 501 from the stub", async () => {
+  it("POST /approvals/:id/approve validates the body, then 404s for an unknown payment", async () => {
     expect((await post("/approvals/p1/approve", {})).status).toBe(400);
     const res = await post("/approvals/p1/approve", { paymentHash: "0x1", approvedBy: "me" });
-    expect(res.status).toBe(501);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: "not_found" });
+  });
+
+  it("POST /approvals/:id/reject validates the body, then 404s for an unknown payment", async () => {
+    expect((await post("/approvals/p1/reject", {})).status).toBe(400);
+    expect((await post("/approvals/p1/reject", { rejectedBy: "me" })).status).toBe(404);
   });
 
   it("/mcp rejects requests without the session token", async () => {

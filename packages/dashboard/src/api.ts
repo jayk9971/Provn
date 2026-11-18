@@ -1,4 +1,4 @@
-import type { Approval, LedgerEntry, PendingApproval, Task } from "@provn/shared";
+import type { ApprovalResult, LedgerEntry, PendingApproval, Task } from "@provn/shared";
 import { MOCK_APPROVALS, MOCK_LEDGER, MOCK_TASK } from "./mock.js";
 
 /** `isMock` is true when the gateway could not answer and placeholder data was used instead. */
@@ -29,21 +29,41 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const api = {
-  createTask: (userRequest: string) =>
-    call<Task>("/tasks", json({ userRequest }), { ...MOCK_TASK, userRequest }),
+  createTask: (body: {
+    userRequest: string;
+    budgetUsdc?: string;
+    allowedVendors?: string[];
+    expiresInMinutes?: number;
+  }) => call<Task>("/tasks", json(body), { ...MOCK_TASK, userRequest: body.userRequest }),
   getLedger: (taskId: string) =>
     call<LedgerEntry[]>(`/tasks/${taskId}/ledger`, undefined, MOCK_LEDGER),
   listApprovals: () => call<PendingApproval[]>("/approvals", undefined, MOCK_APPROVALS),
   approve: (proposalId: string, paymentHash: string) =>
-    call<Approval>(
+    call<ApprovalResult>(
       `/approvals/${proposalId}/approve`,
       json({ paymentHash, approvedBy: "dashboard-user" }),
-      // TODO: the mock approval is only a placeholder; the real one comes from the gateway.
-      {
-        proposalId,
-        paymentHash,
-        approvedBy: "dashboard-user",
-        expiresAt: new Date().toISOString(),
-      },
+      mockResult(proposalId, "deny", "Gateway unreachable: nothing was paid."),
+    ),
+  reject: (proposalId: string) =>
+    call<ApprovalResult>(
+      `/approvals/${proposalId}/reject`,
+      json({ rejectedBy: "dashboard-user" }),
+      mockResult(proposalId, "deny", "Gateway unreachable: nothing was rejected."),
     ),
 };
+
+/** Placeholder result when the gateway can't be reached. Never claims a payment was sent. */
+function mockResult(proposalId: string, outcome: "deny", reasonForUser: string): ApprovalResult {
+  return {
+    approval: null,
+    decision: {
+      proposalId,
+      outcome,
+      ruleId: "mock",
+      reasonForUser,
+      reasonForAgent: "Payment denied.",
+      fieldOrigins: [],
+    },
+    txHash: null,
+  };
+}

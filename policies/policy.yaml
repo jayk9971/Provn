@@ -29,7 +29,7 @@ rules:
   - id: deny-untrusted-or-unknown-recipient
     outcome: deny
     when:
-      recipient_origin_in: [untrusted, unknown]
+      recipient_origin_in: [untrusted, unknown, derived]
     reason: The recipient came from outside content or could not be traced.
 
   - id: deny-payee-not-from-402-of-requested-host
