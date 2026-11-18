@@ -18,9 +18,10 @@ describe("payment path fails closed", () => {
   let deps: PipelineDeps;
   let wallet: MockWalletAdapter;
   let taskId: string;
+  let db: ReturnType<typeof openDatabase>;
 
   beforeEach(async () => {
-    const db = openDatabase(":memory:");
+    db = openDatabase(":memory:");
     const ledger = new SqliteLedger(db);
     const intake = new FormIntake(ledger);
     wallet = new MockWalletAdapter();
@@ -38,8 +39,8 @@ describe("payment path fails closed", () => {
     taskId = (await intake.createTask("Buy one market report")).id;
   });
 
-  const run = (input: unknown, id = taskId) =>
-    new PaymentPipeline(deps).handlePay({ taskId: id, agentId: "agent-1" }, input);
+  const run = async (input: unknown, id = taskId) =>
+    (await new PaymentPipeline(deps).handlePay({ taskId: id, agentId: "agent-1" }, input)).decision;
 
   it("denies invalid input", async () => {
     const decision = await run({ recipient: "not-an-address", amount: "1.00" });
@@ -90,6 +91,7 @@ describe("payment path fails closed", () => {
       record: () => {
         throw new Error("disk full");
       },
+      recordTx: () => {},
     };
     const decision = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
@@ -126,5 +128,56 @@ describe("payment path fails closed", () => {
     expect(decision.outcome).toBe("deny");
     expect(decision.ruleId).toBe("deny-untrusted-or-unknown-recipient");
     expect(wallet.transfers).toHaveLength(0);
+  });
+
+  it("records the tx hash once a payment is sent", async () => {
+    deps.policy = {
+      evaluate: (proposal, origins) => ({
+        proposalId: proposal.id,
+        outcome: "allow",
+        ruleId: "test-allow",
+        reasonForUser: "",
+        reasonForAgent: "",
+        fieldOrigins: origins,
+      }),
+    };
+    const { decision, txHash } = await new PaymentPipeline(deps).handlePay(
+      { taskId, agentId: "agent-1" },
+      VALID_PAY,
+    );
+    expect(decision.outcome).toBe("allow");
+    expect(txHash).toMatch(/^0x/);
+    const row = db
+      .prepare("SELECT tx_hash, amount_base_units FROM payment_executions WHERE proposal_id = ?")
+      .get(decision.proposalId);
+    expect(row).toEqual({ tx_hash: txHash!.toLowerCase(), amount_base_units: "1000000" });
+    expect(() => db.prepare("DELETE FROM payment_executions").run()).toThrow(/append-only/);
+  });
+
+  it("still reports a sent payment as sent if recording its tx hash fails", async () => {
+    deps.policy = {
+      evaluate: (proposal, origins) => ({
+        proposalId: proposal.id,
+        outcome: "allow",
+        ruleId: "test-allow",
+        reasonForUser: "",
+        reasonForAgent: "",
+        fieldOrigins: origins,
+      }),
+    };
+    deps.audit = {
+      record: () => {},
+      recordTx: () => {
+        throw new Error("disk full");
+      },
+    };
+    const { decision, txHash } = await new PaymentPipeline(deps).handlePay(
+      { taskId, agentId: "agent-1" },
+      VALID_PAY,
+    );
+    // Money moved: saying "deny" would invite the agent to pay again.
+    expect(decision.outcome).toBe("allow");
+    expect(txHash).toMatch(/^0x/);
+    expect(wallet.transfers).toHaveLength(1);
   });
 });

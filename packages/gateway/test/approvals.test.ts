@@ -4,9 +4,10 @@ import { ApprovalError, InMemoryApprovalService } from "../src/approvals/index.j
 import type { AuditLog } from "../src/audit/index.js";
 import { FormIntake } from "../src/intake/index.js";
 import type { Ledger } from "../src/ledger/index.js";
-import { PaymentPipeline } from "../src/payment/pipeline.js";
+import { PaymentPipeline, type X402Extras } from "../src/payment/pipeline.js";
 import { InMemoryPaymentHistory, loadPolicy, RulesPolicyEngine } from "../src/policy/index.js";
-import { traceFields } from "../src/trace/index.js";
+import { serializeBoundPayment, traceFields } from "../src/trace/index.js";
+import { sha256Hex } from "../src/util.js";
 import { MockWalletAdapter } from "../src/wallet/index.js";
 
 const PAYEE = "0x2222222222222222222222222222222222222222";
@@ -139,6 +140,10 @@ class FakeAudit implements AuditLog {
       ruleId: decision.ruleId,
     });
   }
+  readonly executions: { proposalId: string; txHash: string }[] = [];
+  recordTx(proposal: PaymentProposal, txHash: string): void {
+    this.executions.push({ proposalId: proposal.id, txHash });
+  }
 }
 
 async function flow(options: { wallet?: MockWalletAdapter } = {}) {
@@ -162,8 +167,9 @@ async function flow(options: { wallet?: MockWalletAdapter } = {}) {
     budgetUsdc: "10",
   });
   const context = { taskId: task.id, agentId: "agent_1" };
-  const propose = () => pipeline.handlePay(context, { recipient: PAYEE, amount: "2" });
-  return { pipeline, approvals, wallet, audit, history, propose };
+  const propose = async (extras: X402Extras = {}) =>
+    (await pipeline.handlePay(context, { recipient: PAYEE, amount: "2" }, extras)).decision;
+  return { pipeline, approvals, wallet, audit, history, propose, ledger, taskId: task.id };
 }
 
 describe("pipeline approval flow", () => {
@@ -186,6 +192,37 @@ describe("pipeline approval flow", () => {
 
     // The audit trail shows both steps, the approval recorded before the payment.
     expect(audit.rows.map((r) => r.ruleId)).toEqual(["approve-new-recipient", "user-approved"]);
+    // And the tx hash is recorded for reconciliation.
+    expect(audit.executions).toEqual([{ proposalId: first.proposalId, txHash: result.txHash }]);
+  });
+
+  it("keeps an approved x402 payment's receipt for one retry of the fetch, so it isn't paid twice", async () => {
+    const { pipeline, approvals, propose, ledger, taskId } = await flow();
+    // The vendor's 402, as the fetcher records it.
+    const content = serializeBoundPayment({
+      payee: PAYEE,
+      price: "2",
+      url: "https://vendor.example/r",
+    });
+    ledger.append({
+      id: "led_402",
+      source: "tool:fetch_paid_data:402",
+      origin: "vendor.example",
+      trust: "bound",
+      contentHash: sha256Hex(content),
+      content,
+      createdAt: new Date().toISOString(),
+      taskId,
+    });
+    const first = await propose({ requestedHost: "vendor.example" });
+    expect(first.outcome).toBe("require_approval");
+    expect(pipeline.takeX402Receipt(taskId, "vendor.example", PAYEE, "2")).toBeNull();
+
+    const [pending] = approvals.listPending();
+    const result = await pipeline.approvePending(first.proposalId, pending!.paymentHash, "jay");
+
+    expect(pipeline.takeX402Receipt(taskId, "vendor.example", PAYEE, "2.00")).toBe(result.txHash);
+    expect(pipeline.takeX402Receipt(taskId, "vendor.example", PAYEE, "2")).toBeNull();
   });
 
   it("can't be approved twice, so it can't pay twice", async () => {

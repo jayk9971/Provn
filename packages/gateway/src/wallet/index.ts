@@ -1,4 +1,5 @@
 export { CircleDevWalletAdapter } from "./circle-dev.js";
+export { LocalVaultWalletAdapter } from "./local-vault.js";
 export { MockWalletAdapter } from "./mock.js";
 
 /**

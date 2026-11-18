@@ -1,4 +1,9 @@
-import type { ApprovalResult, Decision, PaymentProposal } from "@provn/shared";
+import {
+  toBaseUnits,
+  type ApprovalResult,
+  type Decision,
+  type PaymentProposal,
+} from "@provn/shared";
 import type { ApprovalService } from "../approvals/index.js";
 import type { AuditLog } from "../audit/index.js";
 import type { Intake } from "../intake/index.js";
@@ -27,6 +32,22 @@ export interface PaymentContext {
 }
 
 /**
+ * Set by the gateway (never by the agent) when a payment answers a 402: the host the agent
+ * requested, and the quantity from that request's URL. Trace uses them to bind the payee and
+ * price to the 402 and to check where the quantity came from.
+ */
+export interface X402Extras {
+  requestedHost?: string;
+  quantity?: number;
+}
+
+export interface PayResult {
+  decision: Decision;
+  /** Set only if the payment was sent. */
+  txHash: string | null;
+}
+
+/**
  * The payment path: validate, trace, decide, record, then (only if allowed) pay.
  *
  * FAIL CLOSED: any error anywhere in this path, including bad input, an unknown task, a
@@ -36,7 +57,14 @@ export interface PaymentContext {
 export class PaymentPipeline {
   constructor(private readonly deps: PipelineDeps) {}
 
-  async handlePay(context: PaymentContext, rawInput: unknown): Promise<Decision> {
+  /** Paid x402 payments not yet used to fetch, by task, host, payee and amount. */
+  private readonly x402Receipts = new Map<string, string>();
+
+  async handlePay(
+    context: PaymentContext,
+    rawInput: unknown,
+    extras: X402Extras = {},
+  ): Promise<PayResult> {
     const proposalId = newId("prop");
     try {
       const input = PayInputSchema.parse(rawInput);
@@ -50,7 +78,8 @@ export class PaymentPipeline {
         recipient: input.recipient,
         amountUsdc: input.amount,
         memo: input.memo,
-        // TODO: fill requestedHost (and quantity) from the task's fetch history.
+        requestedHost: extras.requestedHost,
+        quantity: extras.quantity,
       };
 
       const origins = this.deps.trace(proposal, this.deps.ledger);
@@ -62,13 +91,13 @@ export class PaymentPipeline {
       if (decision.outcome === "require_approval") {
         this.deps.approvals.create(proposal, decision);
       } else if (decision.outcome === "allow") {
-        await this.pay(proposal);
+        return { decision, txHash: await this.pay(proposal) };
       }
-      return decision;
+      return { decision, txHash: null };
     } catch (error) {
       // TODO: best-effort audit record of the failure (the audit log itself may be what failed).
       console.error("payment path failed; denying", error);
-      return failClosedDecision(proposalId, error);
+      return { decision: failClosedDecision(proposalId, error), txHash: null };
     }
   }
 
@@ -108,6 +137,17 @@ export class PaymentPipeline {
       // Record the approval BEFORE any money moves. If this throws, nothing is paid.
       this.deps.audit.record(proposal, decision);
       const txHash = await this.pay(proposal);
+      if (proposal.requestedHost) {
+        // The agent was told to wait for approval. Keep the receipt so its next fetch of the
+        // same URL uses this payment instead of paying again.
+        const key = receiptKey(
+          proposal.taskId,
+          proposal.requestedHost,
+          proposal.recipient,
+          proposal.amountUsdc,
+        );
+        this.x402Receipts.set(key, txHash);
+      }
       return { approval, decision, txHash };
     } catch (error) {
       console.error("approved payment failed; denying", error);
@@ -131,16 +171,39 @@ export class PaymentPipeline {
   }
 
   /**
-   * Send an allowed payment through the wallet, then count it toward budgets and known
-   * recipients. Throws if the wallet fails; callers turn that into a deny.
+   * The tx hash of an x402 payment that was sent (for example after the user approved it) but
+   * not yet used to fetch the paid content. Single use: it is removed once taken. Lets the agent
+   * retry a fetch after approval without paying a second time.
+   */
+  takeX402Receipt(
+    taskId: string,
+    requestedHost: string,
+    recipient: string,
+    amountUsdc: string,
+  ): string | null {
+    const key = receiptKey(taskId, requestedHost, recipient, amountUsdc);
+    const txHash = this.x402Receipts.get(key) ?? null;
+    this.x402Receipts.delete(key);
+    return txHash;
+  }
+
+  /**
+   * Send an allowed payment through the wallet, then record its tx hash and count it toward
+   * budgets and known recipients. Throws if the wallet fails; callers turn that into a deny.
    */
   private async pay(proposal: PaymentProposal): Promise<string> {
-    // TODO: record the txHash in the audit log (payment_executions) for QuickNode reconciliation.
     const { txHash } = await this.deps.wallet.transfer({
       idempotencyKey: proposal.id,
       to: proposal.recipient,
       amountUsdc: proposal.amountUsdc,
     });
+    // The money has moved, so from here on nothing may turn this into a deny: a deny would
+    // tell the agent to try again. Failures to record are logged loudly instead.
+    try {
+      this.deps.audit.recordTx(proposal, txHash);
+    } catch (error) {
+      console.error(`PAID BUT NOT RECORDED: ${proposal.id} ${txHash}`, error);
+    }
     this.deps.history.record({
       taskId: proposal.taskId,
       recipient: proposal.recipient,
@@ -161,4 +224,8 @@ function failClosedDecision(proposalId: string, error: unknown): Decision {
     reasonForAgent: "Payment denied.",
     fieldOrigins: [],
   };
+}
+
+function receiptKey(taskId: string, host: string, recipient: string, amountUsdc: string): string {
+  return [taskId, host.toLowerCase(), recipient.toLowerCase(), toBaseUnits(amountUsdc)].join("|");
 }
