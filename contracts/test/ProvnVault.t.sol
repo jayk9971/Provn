@@ -124,10 +124,19 @@ contract ProvnVaultTest is Test {
         vault.setLimits(1e6, 1e6);
     }
 
-    function test_OnlyOwner_Pause() public {
+    function test_StrangerCannotPause public {
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(ProvnVault.NotOwner.selector);
         vault.pause();
+    }
+
+    function test_SpenderCanPauseButNotUnpause() public {
+        vm.prank(spender);
+        vault.pause();
+        assertTrue(vault.paused());
+        vm.prank(spender);
+        vm.expectRevert(ProvnVault.NotOwner.selector);
+        vault.unpause();
     }
 
     function test_OnlyOwner_Unpause() public {

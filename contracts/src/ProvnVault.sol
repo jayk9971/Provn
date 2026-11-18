@@ -137,11 +137,13 @@ contract ProvnVault {
         emit LimitsSet(perTxMax_, dailyBudget_);
     }
 
-    function pause() external onlyOwner {
+    /// @notice Owner or spender can pause (Provn's emergency stop). Only the owner can unpause.
+    function pause() external {
+        if (msg.sender != owner && msg.sender != spender) revert NotOwner();
         paused = true;
         emit Paused(true);
     }
-
+    
     function unpause() external onlyOwner {
         paused = false;
         emit Paused(false);
