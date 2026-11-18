@@ -9,14 +9,14 @@ export interface GatewayConfig {
   /** Path to policy.yaml. Defaults to the repo's policies/policy.yaml. */
   policyPath: string | undefined;
   /** Which WalletAdapter to use. "mock" never moves real money. */
-  walletAdapter: "mock" | "circle-dev";
+  walletAdapter: "mock" | "circle-dev" | "local-vault";
 }
 
 /** Read gateway settings from environment variables. See `.env.example`. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
   const walletAdapter = env.WALLET_ADAPTER ?? "mock";
-  if (walletAdapter !== "mock" && walletAdapter !== "circle-dev") {
-    throw new Error(`WALLET_ADAPTER must be "mock" or "circle-dev", got "${walletAdapter}"`);
+  if (walletAdapter !== "mock" && walletAdapter !== "circle-dev" && walletAdapter !== "local-vault") {
+    throw new Error(`WALLET_ADAPTER must be "mock", "circle-dev" or "local-vault", got "${walletAdapter}"`);
   }
   return {
     port: Number(env.GATEWAY_PORT ?? 3001),

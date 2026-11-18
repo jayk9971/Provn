@@ -1,5 +1,6 @@
 export { CircleDevWalletAdapter } from "./circle-dev.js";
 export { MockWalletAdapter } from "./mock.js";
+export { LocalVaultWalletAdapter } from "./local-vault.js";
 
 /**
  * The gateway's only way to move money. Only the gateway holds wallet credentials;

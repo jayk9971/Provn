@@ -9,7 +9,7 @@ import { SqliteLedger, type Ledger } from "./ledger/index.js";
 import { PaymentPipeline } from "./payment/pipeline.js";
 import { loadPolicy, StubPolicyEngine, type PolicyEngine } from "./policy/index.js";
 import { traceFields } from "./trace/index.js";
-import { CircleDevWalletAdapter, MockWalletAdapter, type WalletAdapter } from "./wallet/index.js";
+import { CircleDevWalletAdapter, MockWalletAdapter, LocalVaultWalletAdapter, type WalletAdapter } from "./wallet/index.js";
 
 export interface Services {
   db: Database.Database;
@@ -34,6 +34,8 @@ export function createServices(config: GatewayConfig, overrides?: Partial<Servic
   const wallet =
     config.walletAdapter === "circle-dev"
       ? CircleDevWalletAdapter.fromEnv()
+      : config.walletAdapter === "local-vault"
+      ? LocalVaultWalletAdapter.fromEnv()
       : new MockWalletAdapter();
   const audit = new SqliteAuditLog(db);
   const pipeline = new PaymentPipeline({
