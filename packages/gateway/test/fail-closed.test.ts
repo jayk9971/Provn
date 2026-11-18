@@ -18,9 +18,10 @@ describe("payment path fails closed", () => {
   let deps: PipelineDeps;
   let wallet: MockWalletAdapter;
   let taskId: string;
+  let db: ReturnType<typeof openDatabase>;
 
   beforeEach(async () => {
-    const db = openDatabase(":memory:");
+    db = openDatabase(":memory:");
     const ledger = new SqliteLedger(db);
     const intake = new StubIntake(ledger);
     wallet = new MockWalletAdapter();
@@ -40,13 +41,13 @@ describe("payment path fails closed", () => {
     new PaymentPipeline(deps).handlePay({ taskId: id, agentId: "agent-1" }, input);
 
   it("denies invalid input", async () => {
-    const decision = await run({ recipient: "not-an-address", amount: "1.00" });
+    const { decision } = await run({ recipient: "not-an-address", amount: "1.00" });
     expect(decision.outcome).toBe("deny");
     expect(decision.ruleId).toBe("fail_closed");
   });
 
   it("denies an unknown task", async () => {
-    const decision = await run(VALID_PAY, "task_does_not_exist");
+    const { decision } = await run(VALID_PAY, "task_does_not_exist");
     expect(decision.outcome).toBe("deny");
     expect(decision.ruleId).toBe("fail_closed");
   });
@@ -57,7 +58,7 @@ describe("payment path fails closed", () => {
         throw new Error("policy exploded");
       },
     };
-    const decision = await run(VALID_PAY);
+    const { decision } = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
     expect(decision.ruleId).toBe("fail_closed");
   });
@@ -69,7 +70,7 @@ describe("payment path fails closed", () => {
         throw new Error("ledger unavailable");
       },
     };
-    const decision = await run(VALID_PAY);
+    const { decision } = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
   });
 
@@ -88,8 +89,9 @@ describe("payment path fails closed", () => {
       record: () => {
         throw new Error("disk full");
       },
+      recordTx: () => {},
     };
-    const decision = await run(VALID_PAY);
+    const { decision } = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
     expect(wallet.transfers).toHaveLength(0);
   });
@@ -111,14 +113,33 @@ describe("payment path fails closed", () => {
       },
       getBalance: async () => "0",
     };
-    const decision = await run(VALID_PAY);
+    const { decision } = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
   });
 
   it("denies by default while the policy engine is a stub", async () => {
-    const decision = await run(VALID_PAY);
+    const { decision } = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
     expect(decision.ruleId).toBe("stub.not_implemented");
     expect(wallet.transfers).toHaveLength(0);
+  });
+
+  it("records txHash in the audit log on successful payment", async () => {
+    deps.policy = {
+      evaluate: (proposal, origins) => ({
+        proposalId: proposal.id,
+        outcome: "allow",
+        ruleId: "test-allow",
+        reasonForUser: "",
+        reasonForAgent: "",
+        fieldOrigins: origins,
+      }),
+    };
+    const { decision, txHash } = await run(VALID_PAY);
+    expect(decision.outcome).toBe("allow");
+    expect(txHash).toBeDefined();
+
+    const row = db.prepare("SELECT tx_hash FROM audit_log WHERE proposal_id = ?").get(decision.proposalId) as { tx_hash: string };
+    expect(row.tx_hash).toBe(txHash);
   });
 });

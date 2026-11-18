@@ -42,6 +42,21 @@ const MIGRATIONS: string[] = [
   CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log
     BEGIN SELECT RAISE(ABORT, 'audit log is append-only'); END;
   `,
+  `
+  ALTER TABLE audit_log ADD COLUMN tx_hash TEXT;
+  DROP TRIGGER IF EXISTS audit_log_no_update;
+  CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log
+    WHEN OLD.proposal_id != NEW.proposal_id
+      OR OLD.task_id != NEW.task_id
+      OR OLD.outcome != NEW.outcome
+      OR OLD.rule_id != NEW.rule_id
+      OR OLD.reason_for_user != NEW.reason_for_user
+      OR OLD.reason_for_agent != NEW.reason_for_agent
+      OR OLD.field_origins != NEW.field_origins
+      OR OLD.proposal != NEW.proposal
+      OR OLD.created_at != NEW.created_at
+    BEGIN SELECT RAISE(ABORT, 'audit log is append-only'); END;
+  `,
 ];
 
 /** Bring the database up to the latest schema. Safe to call on every startup. */

@@ -4,13 +4,13 @@ import type Database from "better-sqlite3";
 /** Append-only record of every decision, with the field origins and rule that produced it. */
 export interface AuditLog {
   record(proposal: PaymentProposal, decision: Decision): void;
+  recordTx(proposalId: string, txHash: string): void;
 }
 
 export class SqliteAuditLog implements AuditLog {
   constructor(private readonly db: Database.Database) {}
 
   record(proposal: PaymentProposal, decision: Decision): void {
-    // TODO: also record the txHash once a payment executes, and the approval that allowed it.
     this.db
       .prepare(
         `INSERT INTO audit_log
@@ -29,5 +29,11 @@ export class SqliteAuditLog implements AuditLog {
         JSON.stringify(proposal),
         new Date().toISOString(),
       );
+  }
+
+  recordTx(proposalId: string, txHash: string): void {
+    this.db
+      .prepare(`UPDATE audit_log SET tx_hash = ? WHERE proposal_id = ?`)
+      .run(txHash, proposalId);
   }
 }

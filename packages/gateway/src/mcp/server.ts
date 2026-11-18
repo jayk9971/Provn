@@ -54,7 +54,7 @@ export function createMcpServer(context: PaymentContext, services: Services): Mc
     },
     async (args) => {
       // handlePay never throws: any failure comes back as a "deny" decision.
-      const decision = await services.pipeline.handlePay(context, args);
+      const { decision } = await services.pipeline.handlePay(context, args);
       // The agent only sees the outcome and a short reason. Field origins and the matched rule
       // stay with the user (dashboard and audit log).
       return textResult({

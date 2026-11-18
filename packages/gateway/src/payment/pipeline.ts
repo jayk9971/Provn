@@ -35,7 +35,11 @@ export interface PaymentContext {
 export class PaymentPipeline {
   constructor(private readonly deps: PipelineDeps) {}
 
-  async handlePay(context: PaymentContext, rawInput: unknown): Promise<Decision> {
+  async handlePay(
+    context: PaymentContext,
+    rawInput: unknown,
+    extras?: { requestedHost?: string; quantity?: number },
+  ): Promise<{ decision: Decision; txHash?: string }> {
     const proposalId = newId("prop");
     try {
       const input = PayInputSchema.parse(rawInput);
@@ -49,7 +53,8 @@ export class PaymentPipeline {
         recipient: input.recipient,
         amountUsdc: input.amount,
         memo: input.memo,
-        // TODO: fill requestedHost (and quantity) from the task's fetch history.
+        requestedHost: extras?.requestedHost,
+        quantity: extras?.quantity,
       };
 
       const origins = this.deps.trace(proposal, this.deps.ledger);
@@ -61,14 +66,19 @@ export class PaymentPipeline {
       if (decision.outcome === "require_approval") {
         this.deps.approvals.create(proposal);
       } else if (decision.outcome === "allow") {
-        // TODO: record the txHash in the audit log once the transfer succeeds.
-        await this.deps.wallet.transfer(proposal.recipient, proposal.amountUsdc);
+        const { txHash } = await this.deps.wallet.transfer(proposal.recipient, proposal.amountUsdc);
+        try {
+          this.deps.audit.recordTx(proposalId, txHash);
+        } catch (err) {
+          console.error("Failed to record txHash in audit log", err);
+        }
+        return { decision, txHash };
       }
-      return decision;
+      return { decision };
     } catch (error) {
       // TODO: best-effort audit record of the failure (the audit log itself may be what failed).
       console.error("payment path failed; denying", error);
-      return failClosedDecision(proposalId, error);
+      return { decision: failClosedDecision(proposalId, error) };
     }
   }
 }
