@@ -59,6 +59,16 @@ export const MOCK_APPROVALS: PendingApproval[] = [
     },
     paymentHash: "0xdddd",
     expiresAt: "2026-01-01T00:05:00.000Z",
+    reasonForUser: "This is the first payment to this recipient.",
+    fieldOrigins: [
+      {
+        field: "recipient",
+        value: "0x1111111111111111111111111111111111111111",
+        origin: "bound",
+      },
+      { field: "amountUsdc", value: "0.05", origin: "bound" },
+      { field: "quantity", value: "1", origin: "trusted" },
+    ],
   },
 ];
 

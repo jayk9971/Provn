@@ -4,6 +4,7 @@
  */
 import type { Mandate } from "@provn/shared";
 import { z } from "zod";
+import { normalizeVendor } from "./util.js";
 
 /** 0x-prefixed 20-byte address. Format check only; not an EIP-55 checksum check. */
 export const AddressSchema = z
@@ -23,15 +24,49 @@ export const MandateSchema = z.object({
   expiresAt: z.iso.datetime(),
 }) satisfies z.ZodType<Mandate>;
 
-/** POST /tasks */
-export const CreateTaskBodySchema = z.object({
-  userRequest: z.string().min(1).max(4000),
+const HOSTNAME = /^(?=.{1,253}$)(localhost|([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63})$/;
+
+/**
+ * A vendor the user allows: a host ("paid-api.example") or an address. Normalized (lowercase,
+ * no scheme, port or path) so it compares equal to what the policy engine checks.
+ */
+export const VendorSchema = z
+  .string()
+  .min(1)
+  .max(300)
+  .transform(normalizeVendor)
+  .refine((v) => /^0x[0-9a-f]{40}$/.test(v) || HOSTNAME.test(v), "must be a host or an address");
+
+/** The mandate fields the user fills in on the dashboard. All optional; missing = allow nothing. */
+export const MandateFormSchema = z.object({
+  /** Most the task may spend in total, whole USDC. */
+  budgetUsdc: UsdcAmountSchema.optional(),
+  /** Hosts or addresses the agent may pay without asking. Duplicates are dropped. */
+  allowedVendors: z
+    .array(VendorSchema)
+    .max(20)
+    .transform((vendors) => [...new Set(vendors)])
+    .optional(),
+  /** How long the mandate lasts, 1 minute to 24 hours. */
+  expiresInMinutes: z.number().int().min(1).max(1440).optional(),
+});
+
+export type MandateForm = z.input<typeof MandateFormSchema>;
+
+/** POST /tasks: the user's request plus the optional mandate form. */
+export const CreateTaskBodySchema = MandateFormSchema.extend({
+  userRequest: z.string().trim().min(1).max(4000),
 });
 
 /** POST /approvals/:id/approve */
 export const ApproveBodySchema = z.object({
   paymentHash: z.string().min(1),
-  approvedBy: z.string().min(1),
+  approvedBy: z.string().min(1).max(100),
+});
+
+/** POST /approvals/:id/reject */
+export const RejectBodySchema = z.object({
+  rejectedBy: z.string().min(1).max(100),
 });
 
 /** MCP tool `pay(recipient, amount, memo)` */

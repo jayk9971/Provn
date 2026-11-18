@@ -1,13 +1,19 @@
 import type Database from "better-sqlite3";
-import { StubApprovalService, type ApprovalService } from "./approvals/index.js";
+import { InMemoryApprovalService, type ApprovalService } from "./approvals/index.js";
 import { SqliteAuditLog, type AuditLog } from "./audit/index.js";
 import type { GatewayConfig } from "./config.js";
 import { openDatabase } from "./db.js";
 import { StubFetcher, type Fetcher } from "./fetcher/index.js";
-import { StubIntake, type Intake } from "./intake/index.js";
+import { FormIntake, type Intake } from "./intake/index.js";
 import { SqliteLedger, type Ledger } from "./ledger/index.js";
 import { PaymentPipeline } from "./payment/pipeline.js";
-import { loadPolicy, StubPolicyEngine, type PolicyEngine } from "./policy/index.js";
+import {
+  InMemoryPaymentHistory,
+  loadPolicy,
+  RulesPolicyEngine,
+  type PaymentHistory,
+  type PolicyEngine,
+} from "./policy/index.js";
 import { traceFields } from "./trace/index.js";
 import { CircleDevWalletAdapter, MockWalletAdapter, type WalletAdapter } from "./wallet/index.js";
 
@@ -17,6 +23,7 @@ export interface Services {
   intake: Intake;
   fetcher: Fetcher;
   policy: PolicyEngine;
+  history: PaymentHistory;
   approvals: ApprovalService;
   wallet: WalletAdapter;
   audit: AuditLog;
@@ -27,10 +34,11 @@ export interface Services {
 export function createServices(config: GatewayConfig): Services {
   const db = openDatabase(config.dbPath);
   const ledger = new SqliteLedger(db);
-  const intake = new StubIntake(ledger);
+  const intake = new FormIntake(ledger);
   const fetcher = new StubFetcher(ledger);
-  const policy = new StubPolicyEngine(loadPolicy(config.policyPath));
-  const approvals = new StubApprovalService();
+  const history = new InMemoryPaymentHistory();
+  const policy = new RulesPolicyEngine(loadPolicy(config.policyPath), history);
+  const approvals = new InMemoryApprovalService();
   const wallet =
     config.walletAdapter === "circle-dev"
       ? CircleDevWalletAdapter.fromEnv()
@@ -41,9 +49,10 @@ export function createServices(config: GatewayConfig): Services {
     ledger,
     trace: traceFields,
     policy,
+    history,
     approvals,
     wallet,
     audit,
   });
-  return { db, ledger, intake, fetcher, policy, approvals, wallet, audit, pipeline };
+  return { db, ledger, intake, fetcher, policy, history, approvals, wallet, audit, pipeline };
 }

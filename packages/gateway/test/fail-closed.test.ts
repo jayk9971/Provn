@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { StubApprovalService } from "../src/approvals/index.js";
+import { InMemoryApprovalService } from "../src/approvals/index.js";
 import { SqliteAuditLog } from "../src/audit/index.js";
 import { openDatabase } from "../src/db.js";
-import { StubIntake } from "../src/intake/index.js";
+import { FormIntake } from "../src/intake/index.js";
 import { SqliteLedger } from "../src/ledger/index.js";
 import { PaymentPipeline, type PipelineDeps } from "../src/payment/pipeline.js";
-import { loadPolicy, StubPolicyEngine } from "../src/policy/index.js";
+import { InMemoryPaymentHistory, loadPolicy, RulesPolicyEngine } from "../src/policy/index.js";
 import { traceFields } from "../src/trace/index.js";
 import { MockWalletAdapter } from "../src/wallet/index.js";
 
@@ -22,14 +22,16 @@ describe("payment path fails closed", () => {
   beforeEach(async () => {
     const db = openDatabase(":memory:");
     const ledger = new SqliteLedger(db);
-    const intake = new StubIntake(ledger);
+    const intake = new FormIntake(ledger);
     wallet = new MockWalletAdapter();
+    const history = new InMemoryPaymentHistory();
     deps = {
       intake,
       ledger,
       trace: traceFields,
-      policy: new StubPolicyEngine(loadPolicy()),
-      approvals: new StubApprovalService(),
+      policy: new RulesPolicyEngine(loadPolicy(), history),
+      history,
+      approvals: new InMemoryApprovalService(),
       wallet,
       audit: new SqliteAuditLog(db),
     };
@@ -106,19 +108,23 @@ describe("payment path fails closed", () => {
       }),
     };
     deps.wallet = {
+      kind: "failing",
       transfer: async () => {
         throw new Error("circle is down");
       },
-      getBalance: async () => "0",
+      getStatus: async () => {
+        throw new Error("circle is down");
+      },
+      pause: async () => ({ txHash: null }),
     };
     const decision = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
   });
 
-  it("denies by default while the policy engine is a stub", async () => {
+  it("denies a recipient that can't be traced to anything the task has seen", async () => {
     const decision = await run(VALID_PAY);
     expect(decision.outcome).toBe("deny");
-    expect(decision.ruleId).toBe("stub.not_implemented");
+    expect(decision.ruleId).toBe("deny-untrusted-or-unknown-recipient");
     expect(wallet.transfers).toHaveLength(0);
   });
 });

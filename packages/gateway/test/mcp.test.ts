@@ -82,8 +82,7 @@ describe("gateway MCP server", () => {
     expect(trusts).toEqual(["trusted", "untrusted"]);
   });
 
-  it("pay is denied by the stub policy, and the agent only sees a short reason", async () => {
-    const { client } = await connect();
+  it("pay to an untraceable recipient is denied, and the agent only sees a short reason", async () => {    const { client } = await connect();
     const result = await client.callTool({
       name: "pay",
       arguments: { recipient: "0x" + "ab".repeat(20), amount: "1.00", memo: "x" },

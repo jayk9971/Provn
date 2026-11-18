@@ -6,8 +6,17 @@ import type { GatewayConfig } from "../config.js";
 import { createMcpServer } from "../mcp/server.js";
 import type { Services } from "../services.js";
 import { secretsMatch } from "../util.js";
-import { ApproveBodySchema, CreateTaskBodySchema } from "../validation.js";
+import { ApproveBodySchema, CreateTaskBodySchema, RejectBodySchema } from "../validation.js";
+import { ApprovalError, type ApprovalErrorCode } from "../approvals/index.js";
 import { NotImplementedError } from "../errors.js";
+
+/** HTTP status for each reason an approval can be refused. */
+const APPROVAL_ERROR_STATUS: Record<ApprovalErrorCode, 404 | 409 | 410> = {
+  not_found: 404,
+  hash_mismatch: 409,
+  already_decided: 409,
+  expired: 410,
+};
 
 /** Parse a JSON request body with zod. Returns a 400 Response if it is invalid. */
 async function parseBody<T>(c: Context, schema: ZodType<T>): Promise<T | Response> {
@@ -24,6 +33,9 @@ export function createApp(services: Services, config: GatewayConfig): Hono {
 
   app.onError((error, c) => {
     if (error instanceof NotImplementedError) return c.json({ error: error.message }, 501);
+    if (error instanceof ApprovalError) {
+      return c.json({ error: error.message, code: error.code }, APPROVAL_ERROR_STATUS[error.code]);
+    }
     console.error("unhandled error", error);
     return c.json({ error: "Internal error" }, 500);
   });
@@ -57,7 +69,8 @@ export function createApp(services: Services, config: GatewayConfig): Hono {
   app.post("/tasks", async (c) => {
     const body = await parseBody(c, CreateTaskBodySchema);
     if (body instanceof Response) return body;
-    const task = await services.intake.createTask(body.userRequest);
+    const { userRequest, ...form } = body;
+    const task = await services.intake.createTask(userRequest, form);
     return c.json(task, 201);
   });
 
@@ -67,16 +80,23 @@ export function createApp(services: Services, config: GatewayConfig): Hono {
 
   app.get("/approvals", (c) => c.json(services.approvals.listPending()));
 
+  // Approve: consumes the approval, re-checks the policy, then pays. The response says what
+  // happened: decision.outcome "allow" with a txHash means the payment was sent.
   app.post("/approvals/:id/approve", async (c) => {
     const body = await parseBody(c, ApproveBodySchema);
     if (body instanceof Response) return body;
-    // TODO: after approving, execute the payment through the wallet adapter.
-    const approval = services.approvals.approve(
+    const result = await services.pipeline.approvePending(
       c.req.param("id"),
       body.paymentHash,
       body.approvedBy,
     );
-    return c.json(approval);
+    return c.json(result);
+  });
+
+  app.post("/approvals/:id/reject", async (c) => {
+    const body = await parseBody(c, RejectBodySchema);
+    if (body instanceof Response) return body;
+    return c.json(services.pipeline.rejectPending(c.req.param("id"), body.rejectedBy));
   });
 
   return app;

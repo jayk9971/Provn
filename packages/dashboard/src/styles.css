@@ -29,9 +29,20 @@ section h2 {
   margin: 0 0 12px;
   font-size: 16px;
 }
-textarea {
+label {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+}
+textarea,
+input {
+  display: block;
   width: 100%;
   box-sizing: border-box;
+  margin-top: 4px;
+}
+section > button {
+  margin-top: 12px;
 }
 table {
   width: 100%;
@@ -66,4 +77,23 @@ th {
 }
 .badge-derived {
   background: #a16207;
+}
+.badge-unknown {
+  background: #52525b;
+}
+.reason {
+  font-size: 13px;
+  color: #3f3f46;
+}
+.origins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+.result-allow {
+  color: #15803d;
+}
+.result-deny {
+  color: #b91c1c;
 }
