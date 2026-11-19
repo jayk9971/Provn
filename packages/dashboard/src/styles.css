@@ -97,3 +97,16 @@ th {
 .result-deny {
   color: #b91c1c;
 }
+.badge-matched {
+  background: #15803d;
+}
+.badge-unreconciled {
+  background: #b91c1c;
+}
+.alert {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 600;
+}

@@ -1,5 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { TASK_ID_HEADER } from "@provn/shared";
+import { gunzipSync } from "node:zlib";
+import { ARC_USDC_ADDRESS, TASK_ID_HEADER } from "@provn/shared";
 import { Hono, type Context } from "hono";
 import type { ZodType } from "zod";
 import type { GatewayConfig } from "../config.js";
@@ -9,6 +10,7 @@ import { secretsMatch } from "../util.js";
 import { ApproveBodySchema, CreateTaskBodySchema, RejectBodySchema } from "../validation.js";
 import { ApprovalError, type ApprovalErrorCode } from "../approvals/index.js";
 import { NotImplementedError } from "../errors.js";
+import { extractVaultTransfers, verifyQuickNodeSignature } from "../reconcile/index.js";
 
 /** HTTP status for each reason an approval can be refused. */
 const APPROVAL_ERROR_STATUS: Record<ApprovalErrorCode, 404 | 409 | 410> = {
@@ -28,8 +30,12 @@ async function parseBody<T>(c: Context, schema: ZodType<T>): Promise<T | Respons
   return parsed.data;
 }
 
+/** QuickNode nonces seen recently, so a captured delivery can't be replayed inside the window. */
+const SEEN_NONCES_MAX = 10_000;
+
 export function createApp(services: Services, config: GatewayConfig): Hono {
   const app = new Hono();
+  const seenNonces = new Set<string>();
 
   app.onError((error, c) => {
     if (error instanceof NotImplementedError) return c.json({ error: error.message }, 501);
@@ -63,7 +69,54 @@ export function createApp(services: Services, config: GatewayConfig): Hono {
     return transport.handleRequest(c.req.raw);
   });
 
+  // ---- QuickNode reconciliation webhook ----
+  // Authenticated by QuickNode's HMAC signature, not the agent's token. Fails closed: with no
+  // configured secret or vault address, every delivery is refused.
+  app.post("/chain-events", async (c) => {
+    const secret = config.quicknodeSecret;
+    const vault = config.vaultAddress;
+    if (!secret || !vault) return c.json({ error: "Reconciliation is not configured" }, 503);
+
+    let raw = Buffer.from(await c.req.arrayBuffer());
+    // QuickNode may gzip the body. The signature covers the decompressed text.
+    if (raw[0] === 0x1f && raw[1] === 0x8b) {
+      try {
+        raw = gunzipSync(raw);
+      } catch {
+        return c.json({ error: "Invalid gzip body" }, 400);
+      }
+    }
+    const body = raw.toString("utf8");
+    const headers = {
+      nonce: c.req.header("x-qn-nonce"),
+      timestamp: c.req.header("x-qn-timestamp"),
+      signature: c.req.header("x-qn-signature"),
+    };
+    if (!verifyQuickNodeSignature(body, headers, secret)) {
+      return c.json({ error: "Invalid signature" }, 401);
+    }
+    if (seenNonces.has(headers.nonce!)) return c.json({ error: "Replayed delivery" }, 409);
+    if (seenNonces.size >= SEEN_NONCES_MAX) seenNonces.clear();
+    seenNonces.add(headers.nonce!);
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      return c.json({ error: "Invalid JSON" }, 400);
+    }
+    const transfers = extractVaultTransfers(payload, config.usdcAddress ?? ARC_USDC_ADDRESS, vault);
+    return c.json({ transfers: transfers.length, ...services.reconciler.ingest(transfers) });
+  });
+
   // ---- Routes for the dashboard ----
+
+  /** The vault's limits, today's spend and whether it is paused. */
+  app.get("/status", async (c) => c.json(await services.wallet.getStatus()));
+
+  /** Recent reconciled transfers, newest first. */
+  app.get("/chain-events", (c) => c.json(services.chainEvents.list()));
+
   // TODO: authenticate these routes. They are open for the local demo only.
 
   app.post("/tasks", async (c) => {
