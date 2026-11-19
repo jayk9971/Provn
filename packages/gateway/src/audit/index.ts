@@ -11,6 +11,13 @@ export interface AuditLog {
   recordTx(proposal: PaymentProposal, txHash: string): void;
 }
 
+/** A payment Provn sent, as recorded in payment_executions. Addresses are lowercase. */
+export interface PaymentExecution {
+  proposalId: string;
+  recipient: string;
+  amountBaseUnits: string;
+}
+
 export class SqliteAuditLog implements AuditLog {
   constructor(private readonly db: Database.Database) {}
 
@@ -50,5 +57,23 @@ export class SqliteAuditLog implements AuditLog {
         txHash.toLowerCase(),
         new Date().toISOString(),
       );
+  }
+
+  /** The sent payment with this tx hash, if Provn made it. Used by QuickNode reconciliation. */
+  findExecution(txHash: string): PaymentExecution | null {
+    const row = this.db
+      .prepare(
+        `SELECT proposal_id, recipient, amount_base_units FROM payment_executions
+         WHERE tx_hash = ?`,
+      )
+      .get(txHash.toLowerCase()) as
+      { proposal_id: string; recipient: string; amount_base_units: string } | undefined;
+    return row
+      ? {
+          proposalId: row.proposal_id,
+          recipient: row.recipient,
+          amountBaseUnits: row.amount_base_units,
+        }
+      : null;
   }
 }

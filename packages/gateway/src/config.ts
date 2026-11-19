@@ -10,6 +10,14 @@ export interface GatewayConfig {
   policyPath: string | undefined;
   /** Which WalletAdapter to use. "mock" never moves real money. */
   walletAdapter: WalletAdapterKind;
+  /** QuickNode Stream/Webhook security token. If unset, /chain-events rejects everything. */
+  quicknodeSecret?: string;
+  /** ProvnVault address. Reconciliation watches USDC transfers out of it. */
+  vaultAddress?: string;
+  /** USDC ERC-20 address. Defaults to Arc testnet USDC. */
+  usdcAddress?: string;
+  /** How long an unmatched transfer waits for Provn's payment record before the vault is paused. */
+  reconcileGraceMs?: number;
 }
 
 const WALLET_ADAPTERS = ["mock", "circle-dev", "local-vault"] as const;
@@ -29,5 +37,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     dbPath: env.GATEWAY_DB_PATH ?? "provn.db",
     policyPath: env.POLICY_PATH || undefined,
     walletAdapter: walletAdapter as WalletAdapterKind,
+    quicknodeSecret: env.QUICKNODE_STREAM_SECRET || undefined,
+    vaultAddress: env.VAULT_ADDRESS || undefined,
+    usdcAddress: env.USDC_ADDRESS || undefined,
+    reconcileGraceMs: env.RECONCILE_GRACE_MS ? Number(env.RECONCILE_GRACE_MS) : undefined,
   };
 }

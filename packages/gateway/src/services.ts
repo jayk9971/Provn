@@ -3,6 +3,7 @@ import { InMemoryApprovalService, type ApprovalService } from "./approvals/index
 import { SqliteAuditLog, type AuditLog } from "./audit/index.js";
 import type { GatewayConfig } from "./config.js";
 import { openDatabase } from "./db.js";
+import { Reconciler, SqliteChainEventStore } from "./reconcile/index.js";
 import { HttpFetcher, type Fetcher } from "./fetcher/index.js";
 import { FormIntake, type Intake } from "./intake/index.js";
 import { SqliteLedger, type Ledger } from "./ledger/index.js";
@@ -33,6 +34,8 @@ export interface Services {
   wallet: WalletAdapter;
   audit: AuditLog;
   pipeline: PaymentPipeline;
+  chainEvents: SqliteChainEventStore;
+  reconciler: Reconciler;
 }
 
 /** Test seams: swap the network and the wallet for fakes. */
@@ -63,7 +66,27 @@ export function createServices(config: GatewayConfig, overrides: ServiceOverride
     wallet,
     audit,
   });
-  return { db, ledger, intake, fetcher, policy, history, approvals, wallet, audit, pipeline };
+  const chainEvents = new SqliteChainEventStore(db);
+  const reconciler = new Reconciler({
+    findExecution: (txHash) => audit.findExecution(txHash),
+    events: chainEvents,
+    wallet,
+    graceMs: config.reconcileGraceMs,
+  });
+  return {
+    db,
+    ledger,
+    intake,
+    fetcher,
+    policy,
+    history,
+    approvals,
+    wallet,
+    audit,
+    pipeline,
+    chainEvents,
+    reconciler,
+  };
 }
 
 function createWallet(config: GatewayConfig): WalletAdapter {

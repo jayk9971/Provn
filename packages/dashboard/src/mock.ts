@@ -73,8 +73,11 @@ export const MOCK_APPROVALS: PendingApproval[] = [
 ];
 
 /** Vault budget in USDC base units (6 decimals), as it would be read from the contract. */
-export const MOCK_BUDGET = {
-  perTxMax: 5_000_000n,
-  dailyBudget: 20_000_000n,
-  spentToday: 50_000n,
+export const MOCK_STATUS = {
+  balanceUsdc: "100",
+  perTxMaxUsdc: "5",
+  dailyBudgetUsdc: "20",
+  spentTodayUsdc: "0.05",
+  remainingTodayUsdc: "19.95",
+  paused: false,
 };

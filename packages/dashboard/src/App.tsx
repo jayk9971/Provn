@@ -2,6 +2,7 @@ import type { Task } from "@provn/shared";
 import { useState } from "react";
 import { ApprovalsPane } from "./panes/ApprovalsPane.js";
 import { BudgetPane } from "./panes/BudgetPane.js";
+import { ChainEventsPane } from "./panes/ChainEventsPane.js";
 import { IntakePane } from "./panes/IntakePane.js";
 import { LedgerPane } from "./panes/LedgerPane.js";
 
@@ -18,6 +19,7 @@ export function App() {
         <LedgerPane taskId={task?.id} />
         <ApprovalsPane />
         <BudgetPane />
+        <ChainEventsPane />
       </main>
     </>
   );

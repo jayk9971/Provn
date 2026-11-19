@@ -59,6 +59,28 @@ const MIGRATIONS: string[] = [
   CREATE TRIGGER payment_executions_no_delete BEFORE DELETE ON payment_executions
     BEGIN SELECT RAISE(ABORT, 'payment executions are append-only'); END;
   `,
+  // 3: USDC transfers out of the vault, as reported by QuickNode, and whether each one matched
+  // a payment Provn sent. Append-only; a row is written once its status is final.
+  `
+  CREATE TABLE chain_events (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    tx_hash           TEXT NOT NULL,
+    log_index         INTEGER NOT NULL,
+    from_address      TEXT NOT NULL,
+    to_address        TEXT NOT NULL,
+    amount_base_units TEXT NOT NULL,
+    status            TEXT NOT NULL CHECK (status IN ('matched', 'unreconciled')),
+    proposal_id       TEXT,
+    detail            TEXT NOT NULL,
+    pause_tx_hash     TEXT,
+    created_at        TEXT NOT NULL,
+    UNIQUE (tx_hash, log_index)
+  );
+  CREATE TRIGGER chain_events_no_update BEFORE UPDATE ON chain_events
+    BEGIN SELECT RAISE(ABORT, 'chain events are append-only'); END;
+  CREATE TRIGGER chain_events_no_delete BEFORE DELETE ON chain_events
+    BEGIN SELECT RAISE(ABORT, 'chain events are append-only'); END;
+  `,
 ];
 
 /** Bring the database up to the latest schema. Safe to call on every startup. */
