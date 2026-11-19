@@ -78,7 +78,7 @@ describe("policy: demo scenarios", () => {
     expect(decide(policy, {}, origins("bound"))[0]).toBe("allow");
   });
 
-  it("step 3: injected quantity needs approval even though the vendor is legitimate", () => {
+  it("step 3: an injected quantity is denied even though the vendor is legitimate", () => {
     const { policy } = engine({ known: [VENDOR] });
     expect(
       decide(
@@ -86,7 +86,7 @@ describe("policy: demo scenarios", () => {
         { quantity: 10, amountUsdc: "0.5" },
         origins("bound", "untrusted", "untrusted"),
       ),
-    ).toEqual(["require_approval", "approve-untrusted-quantity-or-amount"]);
+    ).toEqual(["deny", "deny-untrusted-quantity-or-amount"]);
   });
 
   it("step 4: a recipient from outside content is denied", () => {
@@ -208,12 +208,9 @@ describe("policy: floor", () => {
   });
 
   it("the floor also overrides 'needs approval': the vault would refuse it anyway", () => {
-    const { policy } = engine({ known: [VENDOR] });
-    const d = policy.evaluate(
-      proposal({ amountUsdc: "6" }),
-      origins("bound", "untrusted"),
-      MANDATE,
-    );
+    // A new recipient would need approval; at 6 USDC the floor denies it first.
+    const { policy } = engine();
+    const d = policy.evaluate(proposal({ amountUsdc: "6" }), origins("bound", "bound"), MANDATE);
     expect([d.outcome, d.ruleId]).toEqual(["deny", "floor-per-tx-max"]);
     expect(d.reasonForUser).toContain("6 USDC");
   });

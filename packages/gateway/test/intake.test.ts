@@ -202,8 +202,8 @@ describe("intake + trace + policy, end to end", () => {
       }),
     );
     expect(decide({ quantity: 10, amountUsdc: "0.5" })).toEqual([
-      "require_approval",
-      "approve-untrusted-quantity-or-amount",
+      "deny",
+      "deny-untrusted-quantity-or-amount",
     ]);
   });
 

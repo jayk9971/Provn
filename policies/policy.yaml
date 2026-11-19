@@ -38,17 +38,17 @@ rules:
       recipient_not_bound_to_requested_host: true
     reason: The recipient is not the payee in the 402 response of the host being paid.
 
+  - id: deny-untrusted-quantity-or-amount
+    outcome: deny
+    when:
+      amount_or_quantity_origin_in: [untrusted, unknown, derived]
+    reason: The amount or quantity came from outside content or could not be traced.
+
   - id: approve-payment-not-in-plan
     outcome: require_approval
     when:
       not_in_plan: true
     reason: This payment is not part of what you asked the agent to do.
-
-  - id: approve-untrusted-quantity-or-amount
-    outcome: require_approval
-    when:
-      amount_or_quantity_origin_in: [untrusted, unknown, derived]
-    reason: The amount or quantity did not come from you or the vendor.
 
   - id: approve-new-recipient
     outcome: require_approval
