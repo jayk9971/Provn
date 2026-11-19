@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Circle entity secret recovery file (scripts/circle-setup.ts)
+circle-recovery-file.dat
 
 # Node / build output
 node_modules
