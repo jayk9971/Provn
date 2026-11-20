@@ -21,14 +21,14 @@ dashboard --->| http  -> /tasks, /tasks/:id/ledger, /approvals, /approvals/:id/a
 ```
 
 - **shared** defines the vocabulary: `TrustLabel`, `LedgerEntry`, `Mandate`, `PaymentProposal`,
-  `FieldOrigin`, `Decision`, `Approval`, and the Arc constants.
+`FieldOrigin`, `Decision`, `Approval`, and the Arc constants.
 - **gateway** is the trusted core. Everything the agent sees comes through its two MCP tools,
-  `fetch_paid_data(url)` and `pay(recipient, amount, memo)`.
+`fetch_paid_data(url)` and `pay(recipient, amount, memo)`.
 - **agent** is a minimal tool-calling loop. It holds only a gateway session token.
-- **paid-api** is a demo vendor: `/report` answers 402 with a payee, and `/inject/*` serve
-  prompt-injection attacks (wrong quantity, wrong payee, base64-hidden payee).
+- **paid-api** is a demo vendor: `/report` answers 402 with a payee, and `/inject/`* serve
+prompt-injection attacks (wrong quantity, wrong payee, base64-hidden payee).
 - **dashboard** shows the mandate, the live ledger with trust badges, pending approvals, and
-  the budget.
+the budget.
 - **ProvnVault** limits damage on-chain: per-transaction max, daily budget, allowlist, pause.
 
 ## Trust labels
@@ -40,12 +40,5 @@ dashboard --->| http  -> /tasks, /tasks/:id/ledger, /approvals, /approvals/:id/a
 | `untrusted` | Anything fetched from outside.                                                    |
 | `derived`   | Computed by the agent or model from other entries.                                |
 
-A payment goes through without approval only when its recipient, amount, and quantity trace to
+A payment goes through without approval only when its recipient, amount, and quantity trace to  
 `trusted` or `bound` entries.
-
-## Status
-
-This is a skeleton. Real: ledger, audit log, intake (records the trusted request), MCP and HTTP
-wiring, input validation, fail-closed payment path, the vault contract. Stubbed (see `TODO:`
-comments): fetcher, field tracing, the policy engine, approvals, the Circle wallet adapter, the
-LLM call in the agent, payment verification in paid-api, and live data in the dashboard.
