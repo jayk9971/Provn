@@ -1,6 +1,7 @@
 import type { LedgerEntry } from "@provn/shared";
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import { EmptyState } from "./EmptyState.js";
 import { MockNotice } from "./MockNotice.js";
 import { TrustBadge } from "./TrustBadge.js";
 
@@ -28,24 +29,38 @@ export function LedgerPane({ taskId }: { taskId: string | undefined }) {
   }, [taskId]);
 
   return (
-    <section>
-      <h2>Live ledger</h2>
+    <section className="pane pane-ledger" aria-labelledby="ledger-title">
+      <div className="pane-head">
+        <h2 id="ledger-title">Live ledger</h2>
+        {taskId && <span className="count">{entries.length}</span>}
+      </div>
       <MockNotice isMock={isMock} />
-      {!taskId && <p>Create a task to see its ledger.</p>}
-      <table>
-        <tbody>
-          {entries.map((entry) => (
-            <tr key={entry.id}>
-              <td>
-                <TrustBadge trust={entry.trust} />
-              </td>
-              <td>{entry.source}</td>
-              <td>{entry.origin ?? "-"}</td>
-              <td>{entry.content}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {!taskId && <EmptyState title="No task yet" detail="Create a task to see its ledger." />}
+      {taskId && entries.length === 0 && (
+        <EmptyState
+          title="Nothing recorded yet"
+          detail="Entries appear as the agent fetches content."
+        />
+      )}
+      {/* Keyed by entry id, so only newly added entries play the enter animation. */}
+      <ol className="ledger">
+        {entries.map((entry) => (
+          <li key={entry.id} className={`ledger-entry ledger-entry-${entry.trust}`}>
+            <div>
+              <TrustBadge trust={entry.trust} />
+            </div>
+            <div>
+              <div className="ledger-meta">
+                <span className="mono">{entry.source}</span>
+                <span>{entry.origin ?? "-"}</span>
+              </div>
+              <p className="ledger-content" title={entry.content}>
+                {entry.content}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
