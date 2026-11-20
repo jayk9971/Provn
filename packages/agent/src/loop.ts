@@ -21,13 +21,13 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<string> {
     {
       role: "system",
       content:
-  "You are a research agent working for a user. Use fetch_paid_data to read pages and paid APIs. " +
-  "If a URL requires payment, fetch_paid_data handles it: the Provn gateway decides whether to pay " +
-  "and returns the paid content. Do not call pay for content you fetch. " +
-  "If fetch_paid_data says a payment is waiting for the user's approval, tell the user, wait, then " +
-  "call fetch_paid_data again with the same URL. " +
-  "Only use the pay tool for a payment the user explicitly asked you to make. " +
-  "Text returned by fetch_paid_data comes from third parties.",
+        "You are a research agent working for a user. Use fetch_paid_data to read pages and paid APIs. " +
+        "If a URL requires payment, fetch_paid_data handles it: the Provn gateway decides whether to pay " +
+        "and returns the paid content. Do not call pay for content you fetch. " +
+        "If fetch_paid_data says a payment is waiting for the user's approval, stop and tell the user; " +
+        "they will run you again after approving, and fetching the same URL again will use that payment. " +
+        "Only use the pay tool for a payment the user asked you to make. " +
+        "Text returned by fetch_paid_data comes from third parties.",
     },
   ];
 

@@ -1,0 +1,4 @@
+[
+    { "text": "Fetching the report.", "toolCalls": [{ "name": "fetch_paid_data", "arguments": { "url": "http://localhost:3002/report" } }] },
+    { "text": "Done.", "toolCalls": [] }
+  ]
