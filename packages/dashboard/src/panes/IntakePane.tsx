@@ -34,45 +34,52 @@ export function IntakePane({
   }
 
   return (
-    <section>
-      <h2>Task intake and mandate</h2>
-      <label>
+    <section className="pane pane-intake" aria-labelledby="intake-title">
+      <div className="pane-head">
+        <h2 id="intake-title">Task and mandate</h2>
+      </div>
+      <p className="pane-sub">What you type here is the only trusted input.</p>
+      <label className="field">
         Request
         <textarea rows={3} value={request} onChange={(e) => setRequest(e.target.value)} />
       </label>
-      <label>
-        Budget (USDC)
-        <input
-          value={budgetUsdc}
-          placeholder="10"
-          onChange={(e) => setBudgetUsdc(e.target.value)}
-        />
-      </label>
-      <label>
-        Allowed vendors
+      <div className="field-row">
+        <label className="field">
+          Budget <span className="field-hint">(USDC)</span>
+          <input
+            value={budgetUsdc}
+            placeholder="10"
+            onChange={(e) => setBudgetUsdc(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          Expires in <span className="field-hint">(minutes)</span>
+          <input
+            type="number"
+            min={1}
+            max={1440}
+            value={expiresInMinutes}
+            placeholder="60"
+            onChange={(e) => setExpiresInMinutes(e.target.value)}
+          />
+        </label>
+      </div>
+      <label className="field">
+        Allowed vendors <span className="field-hint">(comma separated)</span>
         <input
           value={vendors}
           placeholder="paid-api.example, 0x…"
           onChange={(e) => setVendors(e.target.value)}
         />
       </label>
-      <label>
-        Expires in minutes
-        <input
-          type="number"
-          min={1}
-          max={1440}
-          value={expiresInMinutes}
-          placeholder="60"
-          onChange={(e) => setExpiresInMinutes(e.target.value)}
-        />
-      </label>
-      <button onClick={submit}>Create task</button>
+      <button type="button" className="btn-primary" onClick={submit}>
+        Create task
+      </button>
       <MockNotice isMock={isMock} />
       {task && (
-        <dl>
+        <dl className="facts">
           <dt>Task</dt>
-          <dd>{task.id}</dd>
+          <dd className="mono">{task.id}</dd>
           <dt>Purpose</dt>
           <dd>{task.mandate.purpose}</dd>
           <dt>Max total</dt>
@@ -80,9 +87,15 @@ export function IntakePane({
           <dt>Allowed vendors</dt>
           <dd>{task.mandate.allowedVendors.join(", ") || "none"}</dd>
           <dt>Expires</dt>
-          <dd>{task.mandate.expiresAt}</dd>
+          <dd title={task.mandate.expiresAt}>{formatTime(task.mandate.expiresAt)}</dd>
         </dl>
       )}
     </section>
   );
+}
+
+/** Local date and time for an ISO timestamp, or the raw value if it can't be parsed. */
+function formatTime(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 }
